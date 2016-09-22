@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="LZ">
+	<link rel="icon" href="http://www.elettra.eu/favicon.png">
+
+	<title>eGiga2m documentation</title>
+
+
+	<!-- Bootstrap core CSS -->
+	<link href="../lib/bootstrap/bootstrap.css" rel="stylesheet">
+	<!-- Bootstrap theme -->
+	<link href="../lib/bootstrap/bootstrap-theme.css" rel="stylesheet">
+
+	<!-- Custom styles for this template -->
+	<link href="../lib/bootstrap/theme.css" rel="stylesheet">
+
+	<!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+	<script src="../lib/bootstrap/ie10-viewport-bug-workaround.js"></script>
+
+	<style type="text/css" id="holderjs-style"></style>
+
+</head>
+
+<body>
+	<nav class="navbar navbar-inverse navbar-fixed-top">
+		<div class="container">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="./egiga2m.html#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand" href="#">eGiga2m Documentation</a>
+			</div>
+		</div>
+	</nav>
+
+	<div class="container" style='width: 100%'>
+
+<h3>Introduction</h3>
+
+eGiga2m is a web graphic data viewer.<br>
+Data is supposed to be organized as a set of <a href='https://en.wikipedia.org/wiki/Unevenly_spaced_time_series'>unevenly spaced time series</a>.<br>
+Time series are taken from a web service which typically extracts data from a structured database or are stored
+in a <a href='https://en.wikipedia.org/wiki/Comma-separated_values'>CSV</a> file drag-and-dropped on the plot area.<br>
+Each time series is identified by a unique name and by an ID. Time series names are displayed in a hierarchical tree.<br>
+Users can configure a wide range of parameters. All settings are interfaced through URI parameters.
+This allows to send unique links to graph or exported files and eGiga2m can be included or used by external resources.<br>
+Two graphic library are supported: <a href='http://www.flotcharts.org/'>Flot Charts</a> has MIT license; 
+<a href='http://www.highcharts.com/'>Highcharts</a> offers more features.<br>
+Time series are supposed to be saved on event base, so the value is assured to be within an (hopefully) tiny interval around
+the last saved value unless a new value is saved. that's why the default line style is 'step'.<br>
+
+
+<h3>Quick start</h3>
+
+Users can select a time interval and one or more time series.<br>
+A time interval span from a start point to a stop point. The stop point is optional, if not specified the default is now.<br>
+Both start and stop point may be a fix date-time or a relative interval (for example last 7 days).<br>
+Time series are presented in a tree structure. This tree can be navigated till the leaf level.<br> 
+Clicking on a leaf a time series will be plotted on the left axis <img src='../img/y1axis.png'>.<br>
+Clicking again on the same time series will switch the plot to the right axis <img src='../img/y2axis.png'>.<br>
+Clicking the third time on the same time series will remove it from the plot <img src='../img/y0axis.png'>.<br>
+The "Show" button will create/update the plot using all the selected configurations.<br>
+
+
+<h3>Configurations</h3>
+
+<h4>Link</h4>
+Any eGiga2m plot is thought to be easily sent as a link and/or encapsulated in external web pages.<br>
+In the "Link" menu there are a few methods to obtain such a task.<br>
+The "plot only" link doesn't show any control nor menu, only the plot area. In order to exit this mode just 
+click over the plot.<br>
+The "plot and controls" link shows both the plot and the controls (i.e. menu, time selection widget and time series
+tree). If you click over the plot, you will zoom in the particular area you clicked onto. To revert the zoom just
+click on the back button "&lt;" near the "show" button.<br>
+The "restart from scratch" link deselects all the options that has been selected.<br>
+The "multiplot" form splits the window into two or more sub-windows. Each sub-window can be split again in a recursive
+manner. Once split, each sub-window will show the same plot shown by the original (sub)window. By clicking over a
+sub-window plot, the controls allow to change the plot<br>
+
+<h4>Export</h4>
+This <a href='https://en.wikipedia.org/wiki/Modal_window'>modal</a> is used to export numerical data in a file. CSV,
+XLS (limited support), MAT and ITX file format are provided.<br>
+A CSV file includes all time series in a single table, the first column is the merge of the timestamps of all time
+series, the other columns are one per time series; where undefined a time series is filled with a blank value unless.you select
+the option to fill with the previous value or with the linear interpolation.<br>
+An XLS file includes all time series in a single table in an XML format compatible with most versions of Microsoft<sup>&#169;</sup>
+Excel<sup>&#169;</sup>, OpenOffice&#8482; Calc&#8482; and LibreOffice<sup>&#169;</sup> Calc<sup>&#169;</sup>. 
+If your version isn't compatible, please use CSV format.<br>
+A MAT file includes each time series in a separate variable according to 
+<a href='http://www.mathworks.com/help/pdf_doc/matlab/matfile_format.pdf'>level 5 MAT format</a> by MATLAB<sup>&#174;</sup>.<br>
+An ITX file includes each time series in a separate variable according to IGOR Pro<sup>&#169;</sup> specifications.<br>
+Plot creation isn't necessary before data export. I.E. you can just select time and time series and click on export 
+links without clicking on "show" button.<br>
+If you are using Flot you can export graphs only in PNG format clicking the "export to png" button near the "show" button.
+If you are using HighCharts you can export in PDF, PNG, JPG and SVG from the menu on the upper left corner of the plot.<br>
+
+<h4>Config</h4>
+This <i>modal</i> is used to configure maximum, minimum and logarithmic scale for Y1 and Y2 axis.<br>
+You can show the numeric data in a table.<br>
+You can select the graphic library: Flot or HighCharts (if available). Only for HighCharts you can select 
+the line style, too.<br>
+
+<h4>Events</h4>
+Events are shown as icons inside the plot area.<br>
+Events are organized in sets, each set normally has it's own icon.<br>
+For example any of these set of events can be supported: errors (identified by <img src='../img/event_error.png'>), alarms 
+(identified by <img src='../img/event_alarm.png'>), commands (identified by <img src='../img/event_command.png'>) 
+and buttons (identified by <img src='../img/event_button.png'>).<br>
+Events are available only if supported by the plot web service (see below).<br>
+Errors are the only set of events recognized by eGiga2m. The label of the time series is added along the description. 
+Errors are shown by default, all other events must be checked in the "Config" modal.<br>
+Events can be hidden/shown by clicking on the legend.<br>
+A filter can be attached to any event. Only events whose description will fully match the filter string wil be shown.
+Case sensitiveness of filter match is dependent on database and web service settings, normally it is case unsensitive. 
+If you want to match only a substring of description you can use wildcards (*). E.g. *voltage*.<br>
+Events are available only for Highcharts installations.<br>
+
+
+<h4>Search</h4>
+This <i>modal</i> is used to search in the time series full name list. The '%' character is the jolly as in SQL.<br>
+
+
+<h3>Drag-and-drop</h3>
+
+There are two areas where some content may be dropped on.<br>
+The first one is the tree area. Here the name of a time series can be dropped. Now only the QTango drag XML content 
+is parsed to extract the attribute FQDN. 
+If the control ('ctrl') button is pressed at the drop moment the new time series name is added to the tree, 
+otherwise all previously selected time series will be cleared from the tree.<br>
+Also the plot area can receive a drop, but in this case it should be a CSV file containing data in the same 
+format of the CSV file exported by eGiga2m. 
+I.E. first line contain the label "time" and the list of all the time series name; all the following lines 
+must contain date time in format YYYY-MM-DD hh:mm:ss or timestamp an the value of all time series (empty if undefined).<br>  
+
+
+<h3>Arrays</h3>
+
+The leaf icon switch is different for arrays time series.<br>
+Clicking on an array time series will produce a surface plot <img src='../img/surface.png'>. 
+(<a href='https://en.wikipedia.org/wiki/WebGL'>WebGL</a> support requested)<br>
+Clicking again on an array time series will produce an animation <img src='../img/animation.png'>.<br>
+Clicking the third time on the same array time series will plot each element of the array as an independent 
+scalar time series <img src='../img/multi.png'>.<br>
+Clicking the fourth time on the same array time series will remove it from the plot <img src='../img/y0axis.png'>.<br>
+Only one array time series can be displayed at once. If necessary use the "multiplot" feature.<br>
+
+<hr>
+
+<h3>Web services</h3>
+
+eGiga2m core is composed by a monolithic JavaScript file and a few HTML files, a few JavaScript libraries 
+are included. It is interfaced to 3 web services trough a <a href='https://en.wikipedia.org/wiki/JSON'>JSON</a> 
+interface.<br>
+The first web service is in charge of populating the hierarchical tree of time series names. The tree is loaded 
+dynamically, so a number of call are necessary.<br>
+The second web service is in charge of providing data necessary for the plot<br>
+JSON interface is composed by the following schemas:
+<ul>
+	<li><a href='../schemas/tree.json'>tree root request</a> explore the root level of the time series tree</li>
+	<li><a href='../schemas/tree_key.json'>sub-tree of a node identified by key request</a> explore the sub-tree 
+	of a given node</li>
+	<li><a href='../schemas/tree_reversekey.json'>name associated to key request</a> obtain the name of a time 
+	series associated to a given key</li>
+	<li><a href='../schemas/tree_search.json'>search for a name request</a> search for all time series whose 
+	name contains a given string</li>
+	<li><a href='../schemas/tree_ts.json'>tree expanded to a set of time series request</a> explore the root 
+	level and expand till the leaf level all sub-trees containing any time series of a given list</li>
+	<li><a href='../schemas/plot.json'>plot request</a> return data necessary for plotting each time series.</li>
+</ul>
+The third web service is used to export data in some standard file formats.
+<br> <br> 
+
+
+	</div>
+
+	<!-- Placed at the end of the document so the pages load faster -->
+
+	<!-- jquery -->
+	<link rel="stylesheet" href="../lib/jquery/jquery-ui.min.css">
+	<script src="../lib/jquery/jquery.min.js" type="text/javascript"></script>
+	<script src="../lib/jquery/jquery-ui.min.js" type="text/javascript"></script>
+
+	<!-- Bootstrap core JavaScript -->
+	<script src="../lib/bootstrap/bootstrap.js"></script>
+	<script src="../lib/bootstrap/docs.js"></script>
+
+</body></html>
+

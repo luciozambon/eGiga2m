@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>eGiga2m multiplot</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<meta name="author" content="LZ">
+	</head>
+
+	<body onLoad='multiInit()'>
+		<script type="text/javascript">
+			function getQueryParams(qs) {
+				qs = qs.split("+").join(" ");
+				var params = {},
+						tokens,
+						re = /[?&]?([^=]+)=([^&]*)/g;
+				while (tokens = re.exec(qs)) {
+					params[decodeURIComponent(tokens[1])] = decodeURIComponent(tokens[2]);
+				}
+				return params;
+			}
+			function multiInit() {
+				var $_GET = getQueryParams(document.location.search);
+				var height = (typeof($_GET['multi_height']) !== 'undefined')? $_GET['multi_height'].split(','): [500];
+				var width = (typeof($_GET['multi_width']) !== 'undefined')? $_GET['multi_width'].split(','): '';
+				var multi = "<table width='100%'>";
+				for (var j=0; j<$_GET['multi_rows']; j++) {
+					multi = multi + "<tr>";
+					h = (typeof(height[j]) !== 'undefined')? height[j]: height[0];
+					if (h<150) h=150;
+					w = (typeof(width[j]) !== 'undefined')? width[j]: ((typeof(width[0]) !== 'undefined')? width[0]: '');
+					width = w.length? " width='"+w+"'": ''
+					for (var i=0; i<$_GET['multi_cols']; i++) {
+						multi = multi + "<td"+width+"><iframe src='"+$_GET['multi_param']+"&height="+(h-50)+"' width='100%' height='"+h+"'></iframe></td>";
+					}
+					multi = multi + "</tr>\n";
+				}
+				multi = multi + "</table>\n";
+				document.getElementById('multi').innerHTML = multi;
+			}
+		</script>
+		<div id='multi' onClick="alert('multi')"></div>
+	</body>
+</html>
+
