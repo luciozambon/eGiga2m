@@ -43,6 +43,14 @@
 	}
 
 	// ----------------------------------------------------------------
+	// eval relative differece in parameters
+	function eval_diff($s1, $s2) {
+		$len = strlen($s1) + strlen($s2);
+		$diff = levenshtein(strtoupper(trim($s1)), strtoupper(trim($s2)));
+		return array($diff, $len);
+	}
+
+	// ----------------------------------------------------------------
 	// expand tree children
 	function expand_children($tree_base, $key, $title, $tree_index) {
 		global $skipdomain, $db;
@@ -54,6 +62,7 @@
 			if (isset($tree_base[$title])) {
 				$icon = is_numeric($tree_base[$title])? "./img/y".($tree_base[$title])."axis.png": "./img/{$tree_base[$title]}.png";
 				if (($dim=="array") and ($icon == "./img/y1axis.png")) $icon = "./img/surface.png";
+				if (isset($_REQUEST['debug'])) {debug($key, 'key'); debug($tree_base, 'tree_base');}
 			}
 			return array('title' => basename($title), 'key'=> $row['att_conf_id'], "folder"=> false, "isArray" => $dim=="array", "lazy" => false, "icon"=> $icon);
 		}
@@ -104,14 +113,28 @@
 		$id = explode('[', $_REQUEST['reversekey']);
 		$res = mysqli_query($db, "SELECT att_name FROM att_conf WHERE att_conf_id=".quote_smart($id[0]));
 		$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
-		$fancyConfig = $row['att_name'];
+		$fancyConfig = strtr($row['att_name'], $skipdomain);
 	}
 	else if (isset($_REQUEST['search']) and (strlen($_REQUEST['search'])>0)) {
 		$s = explode(';', quote_smart($_REQUEST['search'], ''));
 		foreach ($s as $search) {
-			$res = mysqli_query($db, "SELECT * FROM att_conf WHERE att_name LIKE '%$search%' ORDER BY att_name");
+			$res = mysqli_query($db, "SELECT att_conf_id, att_name FROM att_conf WHERE att_name LIKE '%$search%' ORDER BY att_name");
 		 	while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				$fancyConfig[$row['att_conf_id']] = strtr($row['att_name'], $skipdomain);
+			}
+		}
+		if (empty($fancyConfig)) $fancyConfig = json_decode ("{}");
+	}
+	else if (isset($_REQUEST['search_similar']) and (strlen($_REQUEST['search_similar'])>0)) {
+		$s = explode(';', quote_smart($_REQUEST['search_similar'], ''));
+		$threshold = isset($_REQUEST['threshold'])? $_REQUEST['threshold']: 0.08;
+		$res = mysqli_query($db, "SELECT att_conf_id, att_name FROM att_conf ORDER BY att_name");
+		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			$s1 = strtr($row['att_name'], $skipdomain);
+			foreach ($s as $search) {
+				list ($diff, $len) = eval_diff($s1, $search); 
+				if (isset($_REQUEST['debug'])) echo "diff: $diff, len: $len, s1: $s1, search: $search<br>\n";
+				if ($diff < round($threshold * $len)) $fancyConfig[$row['att_conf_id']] = $s1;
 			}
 		}
 		if (empty($fancyConfig)) $fancyConfig = json_decode ("{}");
@@ -134,7 +157,7 @@
 			// skip formulae (which contain character '$')
 			if (strpos($s, '$')!==false) continue;
 			$id = explode(',', $s);
-			$y_index = isset($id[2])? $id[2]: 1;
+			$y_index = isset($id[2])? $id[2]: (isset($id[1])? $id[1]: 1);
 			$att_conf_id = explode('[', $id[0]); 
 			// $res = mysqli_query($db, "SELECT att_name FROM att_conf WHERE att_conf_id={$att_conf_id[0]]");
 			$res = mysqli_query($db, "SELECT att_name FROM att_conf WHERE att_conf_id={$att_conf_id[0]}");
@@ -159,6 +182,20 @@
 				$fancyConfig[] = array('title' => basename($title), 'key'=>$key, "lazy" => true, "folder" => true);
 			}
 		}
+	}
+	else if (isset($_REQUEST['keys'])) {
+		$keys = explode(';', quote_smart($_REQUEST['keys'], ''));
+		foreach ($keys as $key) {
+			$query = "SELECT * FROM att_conf WHERE att_name LIKE '%$key' ORDER BY att_name";
+			$res = mysqli_query($db, $query);
+			if ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				$fancyConfig[] = array('title' => $key, 'id'=>$row['att_conf_id']);
+			}
+			else {
+				$fancyConfig[] = array('title' => $key, 'id'=>null);
+			}
+		}
+		if (isset($_REQUEST['debug'])) {echo "$query;<br>\n";}
 	}
 	else if (!isset($_REQUEST['key']) or (strlen($_REQUEST['key'])==0) or ($_REQUEST['key']=="root")) {
 		/* skip caching

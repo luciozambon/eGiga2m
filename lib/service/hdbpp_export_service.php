@@ -133,7 +133,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	if (!isset($_REQUEST['start'])) die('no start (date/time) selected');
 	if (!isset($_REQUEST['ts'])) die('no ts (time series) selected');
 	
-	$mat = $xls = $csv = $igor = false;
+	$mat = $xls = $xls_new = $csv = $igor = false;
 	$merged_var = true;
 	if (isset($_REQUEST['format'])) {
 		if ($_REQUEST['format']=='mat') {
@@ -154,6 +154,23 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$myxls = new php_xls();
 			$myxls->FileName = "eGiga2m.xls";
 			$myxls->Data[0][0] = "time";
+		}
+		if ($_REQUEST['format']=='xls_new') {
+			// /var/www/docs/egiga2m/lib/xls/01simple-download-xls.php
+			$xls_new = true;
+			$old_error_reporting = error_reporting(0);
+			include("../xls/PHPExcel.php");
+			error_reporting($old_error_reporting);
+			$myxls = new PHPExcel();
+			$myxls->getProperties()->setCreator("Maarten Balliauw")
+							 ->setLastModifiedBy("Maarten Balliauw")
+							 ->setTitle("Office 2007 XLSX Test Document")
+							 ->setSubject("Office 2007 XLSX Test Document")
+							 ->setDescription("Test document for Office 2007 XLSX, generated using PHP classes.")
+							 ->setKeywords("office 2007 openxml php")
+							 ->setCategory("Test result file");
+			$myxls->setActiveSheetIndex(0)->setCellValue('A1', "time");
+			$cellColumn = array('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z');
 		}
 		if ($_REQUEST['format']=='csv') {
 			$csv = true;
@@ -276,6 +293,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$big_data[$ts_counter]['xaxis'] = $xaxis;
 			$big_data[$ts_counter]['yaxis'] = $ts_id_num[1];
 			if ($xls) $myxls->Data[0][$ts_counter+1] = strtr($row['att_name'], $skipdomain);
+			if ($xls_new) $myxls->setActiveSheetIndex(0)->setCellValue($cellColumn[$ts_counter+1].'1', strtr($row['att_name'], $skipdomain));
 			if ($csv or $igor) $csv_header[$ts_counter+1] = strtr($row['att_name'], $skipdomain);
 			$ts_map[$ts_id_num[0]] = $ts_counter;
 			if ($row['data_type']==19) $big_data[$ts_counter]['categories'] = $state;
@@ -318,6 +336,25 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		// debug($myxls->Data);
 		$myxls->FileName = $filename;
 		$myxls->SendFile();
+		exit();
+	}
+	if ($xls_new) {
+		$row = 2;
+		foreach ($data as $time=>$v) {
+			if (isset($_REQUEST['zoh'])) {foreach ($v as $i=>$val) {}}
+			$myxls->setActiveSheetIndex(0)->setCellValue($cellColumn[0].$row, $time);
+			foreach ($v as $i=>$val) {
+				if (isset($_REQUEST['zoh'])) if (empty($val)) $val = $old_data[$i]; else $old_data[$i] = $val;
+				$myxls->setActiveSheetIndex(0)->setCellValue($cellColumn[$i+1].$row, $val);
+			}
+			$row++;
+		}
+		header('Content-Type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment;filename="eGiga2m.xls"');
+		header('Cache-Control: max-age=0');
+
+		$objWriter = PHPExcel_IOFactory::createWriter($myxls, 'Excel5');
+		$objWriter->save('php://output');
 		exit();
 	}
 	if ($csv) {

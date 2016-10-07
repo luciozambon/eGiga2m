@@ -253,11 +253,32 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		}
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
 			$big_data_w = array();
-			$res = mysqli_query($db, "SELECT * FROM adt WHERE ID={$ts_id_num[0]}");
-			// echo "SELECT * FROM adt WHERE ID={$ts_id_num[0]};<br>\n";
+			$query = "SELECT * FROM adt WHERE ID={$ts_id_num[0]}";
+			$res = mysqli_query($db, $query);
 			$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+			if (isset($_REQUEST['debug'])) debug($query);
 			$table = sprintf("att_{$ts_id_num[0]}");
 			$col_name = !$row['writable']? "value AS val": "read_value AS val";
+			if (isset($_REQUEST['zoh']) or isset($_REQUEST['foh'])) {
+				$query = "SELECT {$timeformat}time, $col_name FROM $table WHERE time <= '{$start[$xaxis-1]}' ORDER BY time DESC LIMIT 1";
+				$res = mysqli_query($db, $query);
+				if (isset($_REQUEST['debug'])) debug($query);
+				$zrow = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				$old_data[$ts_num] = $zrow['val']-0;
+				$old_time[$ts_num] = $zrow['time']-0;
+				if (isset($_REQUEST['debug'])) {debug($zrow, 'row');debug($ts_num, 'ts_num');}
+			}
+			/*
+			if (isset($_REQUEST['foh']) and (!empty($stop[$xaxis-1]))) {
+				$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id={$ts_id_num[0]} {$stop[$xaxis-1]} ORDER BY data_time LIMIT 1";
+				$res = mysqli_query($db, $query);
+				if (isset($_REQUEST['debug'])) debug($query);
+				$zrow = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				$last_data[$ts_num] = $zrow['val']-0;
+				$last_time[$ts_num] = $zrow['time']-0;
+				if (isset($_REQUEST['debug'])) {debug($zrow, 'row');debug($ts_num, 'ts_num');}
+			}
+			*/
 			$big_data[$ts_counter]['ts_id'] = $ts_id_num[0];
 			$big_data[$ts_counter]['label'] = strtr($row['full_name'], $skipdomain);
 			$big_data[$ts_counter]['xaxis'] = $xaxis;
@@ -280,7 +301,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			// debug($query); exit(0);
 			// if (isset($_REQUEST['timeformat'])) die($query);
 			$res = mysqli_query($db, $query);
-			if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', $query);
+			// if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', $query);
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				// if (!isset($data[$row['time']])) $data[$row['time']] = array_merge($ts_array, array_fill(0,count($ts_array), ''));
 				if (!isset($data[$row['time']])) $data[$row['time']] = $ts_empty;
@@ -309,7 +330,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	}
 	
 	ksort($data);
-	// debug($data);
+	// if (isset($_REQUEST['debug'])) {debug($data); exit();}
 //http://fcsproxy.elettra.trieste.it/docs/egiga2m/lib/service/hdb_export_service.php?start=2015-06-18%2003:40:00&stop=2015-06-18%2003:45:00&ts=00196,1,1;00214,1,1&conf=fermi&export=csv&separator=%09&filename=2015-06-18.csv
 	if ($mat) {
 		$php2mat->SendFile("eGiga2m.mat", $big_data, "eGiga2m, Platform: $platform, Created on: ".date("d-F-Y H:i:s"));
@@ -317,6 +338,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	}
 	if ($xls) {
 		foreach ($data as $time=>$v) {
+			if (isset($_REQUEST['zoh'])) {foreach ($v as $i=>$val) {if ($val==$ts_empty[$i]) $v[$i] = $old_data[$i]; else $old_data[$i] = $val;}}
 			array_unshift($v, $time);
 			$myxls->Data[] = $v;
 		}
@@ -326,8 +348,13 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		exit();
 	}
 	if ($csv) {
-		header("Content-Type: application/csv");
-		header("Content-Disposition: attachment; filename=\"$filename\"");
+		if (!isset($_REQUEST['debug']))  {
+			header("Content-Type: application/csv");
+			header("Content-Disposition: attachment; filename=\"$filename\"");
+		}
+		else {
+			debug($_REQUEST);
+		}
 		echo "time";
 		foreach ($csv_header as $h) {
 			echo $separator.$h;
@@ -335,7 +362,9 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		echo "\n";
 		foreach ($data as $time=>$v) {
 			echo $time;
-			foreach ($v as $val) {
+			foreach ($v as $i=>$val) {
+				if (isset($_REQUEST['zoh'])) {if ($val==$ts_empty[$i]) $val = $old_data[$i]; else $old_data[$i] = $val;}
+				if (isset($_REQUEST['debug'])) echo "_{$val}_{$nv}_{$i}_{$old_data[$i]}<br>";
 				echo $separator.$val;
 			}
 			echo "\n";

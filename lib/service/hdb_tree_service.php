@@ -57,6 +57,14 @@
 	}
 
 	// ----------------------------------------------------------------
+	// eval relative differece in parameters
+	function eval_diff($s1, $s2) {
+		$len = strlen($s1) + strlen($s2);
+		$diff = levenshtein(strtoupper(trim($s1)), strtoupper(trim($s2)));
+		return array($diff, $len);
+	}
+
+	// ----------------------------------------------------------------
 	// expand tree children
 	function expand_children($tree_base, $key, $title, $tree_index) {
 		global $skipdomain, $db, $dim;
@@ -118,6 +126,20 @@
 		}
 		if (empty($fancyConfig)) $fancyConfig = json_decode ("{}");
 	}
+	else if (isset($_REQUEST['search_similar']) and (strlen($_REQUEST['search_similar'])>0)) {
+		$s = explode(';', quote_smart($_REQUEST['search_similar'], ''));
+		$threshold = isset($_REQUEST['threshold'])? $_REQUEST['threshold']: 0.08;
+		$res = mysqli_query($db, "SELECT ID, full_name FROM adt ORDER BY full_name");
+		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			$s1 = strtr($row['full_name'], $skipdomain);
+			foreach ($s as $search) {
+				list ($diff, $len) = eval_diff($s1, $search); 
+				if (isset($_REQUEST['debug'])) echo "diff: $diff, len: $len, s1: $s1, search: $search<br>\n";
+				if ($diff < round($threshold * $len)) $fancyConfig[$row['ID']] = $s1;
+			}
+		}
+		if (empty($fancyConfig)) $fancyConfig = json_decode ("{}");
+	}
 	else if (isset($_REQUEST['ts']) and (strlen($_REQUEST['ts'])>0)) {
 		$ts = explode(';', quote_smart($_REQUEST['ts'], ''));
 		$ids = $tsArray = array();
@@ -148,6 +170,20 @@
 				$fancyConfig[] = array('title' => basename($title), 'key'=>$key, "lazy" => true, "folder" => true);
 			}
 		}
+	}
+	else if (isset($_REQUEST['keys'])) {
+		$keys = explode(';', quote_smart($_REQUEST['keys'], ''));
+		foreach ($keys as $key) {
+			$query = "SELECT * FROM adt WHERE full_name LIKE '$key' ORDER BY full_name";
+			$res = mysqli_query($db, $query);
+			if ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				$fancyConfig[] = array('title' => $key, 'id'=>$row['att_conf_id']);
+			}
+			else {
+				$fancyConfig[] = array('title' => $key, 'id'=>null);
+			}
+		}
+		if (isset($_REQUEST['debug'])) {echo "$query;<br>\n";}
 	}
 	else if (!isset($_REQUEST['key']) or (strlen($_REQUEST['key'])==0) or ($_REQUEST['key']=="root")) {
 		/* skip caching
