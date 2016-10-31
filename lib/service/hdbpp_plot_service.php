@@ -145,7 +145,7 @@
 			if ($dim=='array') $_REQUEST['readonly'] = true;
 			if (($io=="rw") and (($element_index=='0') or (!empty($_REQUEST['readonly'])))) $io = "ro";
 			if (($io=="rw") and ($element_index=='1')) $io = "wo";
-			$col_name = $data_type_result[$io];
+			$col_name = $dim=='array'? "value_r AS val,idx": $data_type_result[$io];
 			if ($type=='devstate') $big_data[$ts_counter]['categories'] = $state;
 			$big_data[$ts_counter]['ts_id'] = $att_conf_id;
 			$big_data[$ts_counter]['label'] = strtr($conf_row['att_name'], $skipdomain);
@@ -172,7 +172,8 @@
 			$sampling_every = ceil(mysqli_num_rows($res)/1000);
 			$oversampled = $sampling_every>1;
 			$max = $min = array();
-			if (($dim=='array') && ($big_data[$ts_counter]['yaxis']=='multi')) {
+			// if (($dim=='array') && ($big_data[$ts_counter]['yaxis']=='multi')) {
+			if ($dim=='array') {
 				$pretimer = false;
 				$posttimer = false;
 			}
@@ -199,26 +200,25 @@
 						$buf = array();
 						$oldtime = $row['time'];
 					}
-					$buf[] = $type=='string'? $row['val']: $row['val']-0;
+					$buf[] = (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0;
 				}
 			}
 			else while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				if ($oversampled) {
+					if (isset($_REQUEST['debug'])) debug($row, "oversampled, decimation: $decimation, row");
 					if ($decimation=='downsample') {
 						if ($sampling_every>1) {
 							$sample++;
 							if ($sample % $sampling_every) continue;
 						}
 						if ($dim=='array') {
-							$v = explode(',', $row['val']);
 							if ($big_data[$ts_counter]['yaxis']=='multi') {
-								foreach ($v as $k=>$i) {
-									$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0]."[$k]";
-									$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
-									$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
-									$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
-									$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, $i-0);
-								}
+								$k = $row['idx'];
+								$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0];
+								$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
+								$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
+								$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
+								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 							}
 							else {
 								foreach ($v as $k=>$i) $v[$k] = $i-0; 
@@ -228,35 +228,43 @@
 						else {
 							$big_data[$ts_counter]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 							if ($io=="rw") {
-								$big_data_w[] = array($row['time']*1000, $type=='string'? $row['val_w']: $row['val_w']-0);
+								$big_data_w[] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 							}
 						}
 					}
 					else if ($decimation=='maxmin') {
-						$slot = floor(($row['time']-$start_timestamp)/$slot_maxmin);
-						if (isset($max[$slot]) and is_null($max[$slot][1])) continue;
-						if (isset($_REQUEST['debug']) and (is_null($row['val']))) debug($row, gettype($row['val']));
-						$v = $row['val']-0;
-						if (isset($max[$slot])) {
-							if ($v>$max[$slot][1]) $max[$slot] = array($row['time']*1000, $v);
-							if ($v<$min[$slot][1]) $min[$slot] = array($row['time']*1000, $v);
+						if ($dim=='array') {
+							$k = $row['idx'];
+							$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0];
+							$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
+							$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
+							$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
+							$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 						}
-						else $max[$slot] = $min[$slot] = array($row['time']*1000, $v);
-						if (is_null($row['val'])) $max[$slot] = $min[$slot] = array($row['time']*1000, NULL);
+						else {
+							$slot = floor(($row['time']-$start_timestamp)/$slot_maxmin);
+							if (isset($max[$slot]) and is_null($max[$slot][1])) continue;
+							if (isset($_REQUEST['debug']) and (is_null($row['val']))) debug($row, gettype($row['val']));
+							$v = $row['val']-0;
+							if (isset($max[$slot])) {
+								if ($v>$max[$slot][1]) $max[$slot] = array($row['time']*1000, $v);
+								if ($v<$min[$slot][1]) $min[$slot] = array($row['time']*1000, $v);
+							}
+							else $max[$slot] = $min[$slot] = array($row['time']*1000, $v);
+							if (is_null($row['val'])) $max[$slot] = $min[$slot] = array($row['time']*1000, NULL);
+						}
 					}
 				}
 				else {
 					if (isset($_REQUEST['debug'])) debug($row, 'row');
 					if ($dim=='array') {
-						$v = explode(',', $row['val']);
 						if ($big_data[$ts_counter]['yaxis']=='multi') {
-							foreach ($v as $k=>$i) {
-								$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0]."[$k]";
-								$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
-								$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
-								$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
-								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, $i-0);
-							}
+							$k = $row['idx'];
+							$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0];
+							$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
+							$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
+							$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
+							$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 						}
 						else {
 							foreach ($v as $k=>$i) $v[$k] = $i-0; 
@@ -266,7 +274,7 @@
 					else {
 						$big_data[$ts_counter]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 						if ($io=="rw") {
-							$big_data_w[] = array($row['time']*1000, $type=='string'? $row['val_w']: $row['val_w']-0);
+							$big_data_w[] = array($row['time']*1000, (($type=='string') or ($row['val_w'] === NULL))? $row['val_w']: $row['val_w']-0);
 						}
 					}
 				}
