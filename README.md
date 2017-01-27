@@ -1,10 +1,4 @@
- eGiga2m
- =======
- 
-+|Doc Status|
-+
-+Main website: https://luciozambon.altervista.org/egiga2m/doc/index.html
-+
+# eGiga2m
 
 eGiga2m is a web graphic data viewer.
 
@@ -42,3 +36,7 @@ The "Show" button will create/update the plot using all the selected configurati
 https://luciozambon.altervista.org/egiga2m/?start=last%207%20days&ts=2,1,1;1382,1,1&style=spline
 
 https://luciozambon.altervista.org/egiga2m/xMulti.html
+
+## Documentation
+some documentation is available at 
+https://luciozambon.altervista.org/egiga2m/doc/index.html
