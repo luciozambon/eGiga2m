@@ -1,4 +1,11 @@
-# eGiga2m
+ eGiga2m
+ =======
+ 
++|Doc Status|
++
++Main website: https://luciozambon.altervista.org/egiga2m/doc/index.html
++
+
 eGiga2m is a web graphic data viewer.
 
 Data is supposed to be organized as a set of unevenly spaced time series.
@@ -32,6 +39,6 @@ The "Show" button will create/update the plot using all the selected configurati
 
 ## Examples
 
-http://luciozambon.altervista.org/egiga2m/?start=last%207%20days&ts=2,1,1;1382,1,1&style=spline
+https://luciozambon.altervista.org/egiga2m/?start=last%207%20days&ts=2,1,1;1382,1,1&style=spline
 
-http://luciozambon.altervista.org/egiga2m/xMulti.html
+https://luciozambon.altervista.org/egiga2m/xMulti.html
