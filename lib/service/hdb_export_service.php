@@ -1,10 +1,23 @@
 <?php
 
+/*
+IGOR
+WAVES/D unit1, unit2
+BEGIN
+19.7 23.9
+19.8 23.7
+20.1 22.9
+END
+X SetScale x 0,1, "V", unit1; SetScale y 0,0, "A", unit1
+X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
+*/
+
 	include './hdb_conf.php';
 
-	if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
-	if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', json_encode($_REQUEST));
+	if (isset($_REQUEST['debug'])) {$t0 = microtime(TRUE); echo "memory_usage: ".memory_get_usage()."<br>\n";}
+	// if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', json_encode($_REQUEST));
 	$timezone = date_default_timezone_get();
+	$querytime = 0;
 
 	$state = array('ON','OFF','CLOSE','OPEN','INSERT','EXTRACT','MOVING','STANDBY','FAULT','INIT','RUNNING','ALARM','DISABLE','UNKNOWN');
 
@@ -92,20 +105,467 @@
 		return $time;
 	}
 
-/*
-IGOR
-WAVES/D unit1, unit2
-BEGIN
-19.7 23.9
-19.8 23.7
-20.1 22.9
-END
-X SetScale x 0,1, "V", unit1; SetScale y 0,0, "A", unit1
-X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
-*/
+	// ----------------------------------------------------------------
+	// log request
+	function log_request() {
+		global $querytime;
+		$requests = $sep = '';
+		foreach ($_REQUEST as $key => $value ) {
+			$requests .= $sep . $key . '=' . $value;
+			$sep = '&';
+		}
+		$remote = $_SERVER['REMOTE_ADDR'];
+		$forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR'])? $_SERVER['HTTP_X_FORWARDED_FOR']: 0;
+		$fd = fopen(LOG_REQUEST, 'a');
+		$date = date("Y-m-d H:i:s");
+		fwrite($fd, "$date $remote $forwarded $requests query: ".round($querytime,2)."[s]\n");
+		fclose($fd);
+	}
+
+	// ----------------------------------------------------------------
+	// emit matlab
+	function emit_matlab_data($ts) {
+		global $db, $start, $stop;
+		include_once("../php2mat.php");
+		$php2mat = new php2mat();
+		$php2mat->php2mat5_head('eGiga2m.mat', "Created on: ".date("d-F-Y H:i:s"));
+		foreach ($ts as $xaxis=>$ts_array) {
+			foreach ($ts_array as $ts_num=>$ts_id_num) {
+				if (isset($_REQUEST['debug'])) debug($ts_id_num,'ts_id_num');
+				$res = mysqli_query($db, "SELECT * FROM adt WHERE ID={$ts_id_num[0]}");
+				$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				$full_name = strtr($row['full_name'],array('/'=>'_'));
+				$table = sprintf("att_{$ts_id_num[0]}");
+				$col_name = !$row['writable']? "value AS val": "read_value AS val";
+				$orderby = "time";
+				$dim = $row['data_format'];
+				$tm = "UNIX_TIMESTAMP(time) / 86400 + 719519"; // UNIX_TIMESTAMP(time) / 86400 + datenum('01/01/1970');";
+				$query = "SELECT time, $tm AS t, $col_name FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
+				if (isset($_REQUEST['debug'])) debug($query);
+				$res = mysqli_query($db, $query);
+				$php2mat->php2mat5_var_init($full_name, 2, mysqli_num_rows($res));
+				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+					$php2mat->php2mat5_var_addrow($row['t']);
+				}
+				$res = mysqli_query($db, $query);
+				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+					$php2mat->php2mat5_var_addrow($row['val']-0);
+				}
+			}
+		}
+		exit(0);
+	}
+
+	$output_buffer = '';
+	// ----------------------------------------------------------------
+	// send message to output either buffered or not
+	function emit_output($str) {
+		global $output_buffer;
+		if (isset($_REQUEST['buffered_output'])) $output_buffer .= $str; else echo $str;
+	}
+
+	// ----------------------------------------------------------------
+	// eval linear interpolation
+	// see https://en.wikipedia.org/wiki/Linear_interpolation
+	function linear_interpolation($x0, $y0, $x1, $y1, $x) {
+		return $y0 + ($x - $x0) * ($y1 - $y0) / ($x1 - $x0);
+	}
+
+	// ----------------------------------------------------------------
+	// calculate the median value
+	function calculate_median($arr) {
+		sort($arr);
+		$count = count($arr); //total numbers in array
+		$middleval = floor(($count-1)/2); // find the middle value, or the lowest middle value
+		if ($count % 2) { // odd number, middle is the median
+			return $arr[$middleval];
+		} 
+		else { // even number, calculate avg of 2 medians
+			return (($arr[$middleval] + $arr[$middleval+1])/2);
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// emit data with linear filling of missing values
+	function emit_data_foh($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format, $old_data, $old_time) {
+		global $db, $pretimer, $start, $stop, $output_buffer, $start_timestamp, $stop_timestamp;
+		$empty_val = $data_type=='itx'? "NAN": NULL;
+		$time_buffer = array();
+		$data_buffer = array(array_fill(0, $max_id+1, null));
+		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			if (empty($data_buffer[0][$row['ts_index']])) {
+				$data_buffer[0][$row['ts_index']] = linear_interpolation($old_time[$row['ts_index']], $old_data[$row['ts_index']], $row['timestamp'], $row['val']-0, $start_timestamp[0]);
+				$time_buffer[0] = $start_timestamp[0];
+				if (isset($_REQUEST['debug'])) echo "<br>\nlinear_interpolation__({$old_time[$row['ts_index']]}, {$old_data[$row['ts_index']]}, {$row['timestamp']}, {$row['val']}-0, {$start_timestamp[0]});<br>\n";
+				$data_index = 0;
+			}
+			else {
+				$data_index = count($data_buffer)-1;
+				while (is_null($data_buffer[$data_index][$row['ts_index']])) $data_index--;
+			}
+			for ($i=$data_index+1; $i<count($data_buffer); $i++) {
+				$data_buffer[$i][$row['ts_index']] = linear_interpolation($time_buffer[$data_index], $data_buffer[$data_index][$row['ts_index']], $row['timestamp'], $row['val']-0, $time_buffer[$i]);
+				if (isset($_REQUEST['debug'])) echo "<br>\nlinear_interpolation({$time_buffer[$data_index]}, {$data_buffer[$data_index][$row['ts_index']]}, {$row['timestamp']}, {$row['val']}-0, {$time_buffer[$i]});<br>\n"; 
+			}
+			if ($time_buffer[count($time_buffer)-1] == $row['timestamp']) {
+				$new_data = array_pop($data_buffer);
+			}
+			else {
+				$new_data = array_fill(0, $max_id+1, null);
+				$time_buffer[] = $row['timestamp'];
+			}
+			$new_data[$row['ts_index']] = $row['val']-0;
+			$data_buffer[] = $new_data;
+			while (!in_array(null, $data_buffer[1])) {
+				if (isset($_REQUEST['debug'])) debug($data_buffer, 'data_buffer');
+				$t = array_shift($time_buffer);
+				emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+				$v = array_shift($data_buffer);
+				foreach ($v as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+			}
+			if (isset($_REQUEST['debug'])) {debug($data_buffer, 'data_buffer__');debug($time_buffer, 'time_buffer__');}
+		}
+		// is there a tail to append?
+		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else emit_output($nl);
+		if (isset($_REQUEST['debug'])) {echo "extraction time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "memory_usage: ".memory_get_usage().", memory_limit: $memory_limit<br>\n";}
+		if (isset($_REQUEST['buffered_output'])) {if (!isset($_REQUEST['debug'])) header("Content-Length: ".strlen($output_buffer)); echo $output_buffer;}
+		if (defined('LOG_REQUEST')) {
+			log_request();
+		}
+		exit(0);
+	}
+
+	// ----------------------------------------------------------------
+	// emit decimated data in text formats
+	function emit_data_decimated($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format) {
+		global $db, $pretimer, $start, $stop, $output_buffer, $start_timestamp, $stop_timestamp;
+		$start_t = $start_timestamp[0];
+		$stop_t = $stop_timestamp[0];
+		$empty_val = $data_type=='itx'? "NAN": NULL;
+		$decimation_samples = $_REQUEST['decimation']-0>1? $_REQUEST['decimation']: 1000;
+		$decimation_maxmin = strpos($_REQUEST['decimation'], 'maxmin')!==false;
+		$decimation_avg = strpos($_REQUEST['decimation'], 'avg')!==false;
+		$decimation_mean = strpos($_REQUEST['decimation'], 'mean')!==false;
+		$decimation_samples_per_period = ($decimation_maxmin? 2: 0) + ($decimation_avg? 1: 0) + ($decimation_mean? 1: 0);
+		// if no decimation method is requested use maxmin as default
+		if ($decimation_samples_per_period==0) {$decimation_maxmin = true; $decimation_samples_per_period = 2;}
+		$decimation_period = ($stop_timestamp[0]-$start_timestamp[0]) / floor($decimation_samples / $decimation_samples_per_period);
+		$decimation_max_buffer = $decimation_min_buffer = array_fill(0, $max_id+1, null);
+		$decimation_avg_buffer = $decimation_count_buffer = array_fill(0, $max_id+1, 0);
+		$decimation_mean_buffer = array_fill(0, $max_id+1, array());
+		if (isset($_REQUEST['debug'])) {debug($decimation_max_buffer); debug($decimation_avg_buffer);}
+		$decimation_period_index = 1;
+		$parts = $decimation_period/($decimation_samples_per_period+1);
+		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			if (memory_get_usage()>$memory_threshold) die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
+			if ($start_t+$decimation_period_index*$decimation_period < $row['timestamp']) {
+				$i = $decimation_samples_per_period;
+				if ($decimation_maxmin) {
+					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
+					$i--;
+					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+					foreach ($decimation_min_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+					if (isset($_REQUEST['debug'])) {debug($decimation_max_buffer);}
+				}
+				if ($decimation_mean) {
+					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
+					$i--;
+					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+					foreach ($decimation_mean_buffer as $i=>$val) {emit_output($separator.(count($val)>0? sprintf($format, calculate_median($val)): $empty_val));}
+					$decimation_mean_buffer = array_fill(0, $max_id+1, array());
+				}
+				if ($decimation_avg) {
+					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
+					$i--;
+					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+					foreach ($decimation_avg_buffer as $i=>$val) {emit_output($separator.($decimation_count_buffer[$i]>0? sprintf($format, $val/$decimation_count_buffer[$i]): $empty_val));}
+					$decimation_avg_buffer = $decimation_count_buffer = array_fill(0, $max_id+1, 0);
+				}
+				if ($decimation_maxmin) {
+					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
+					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+					foreach ($decimation_max_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+					$decimation_max_buffer = $decimation_min_buffer = array_fill(0, $max_id+1, null);
+				}
+				$decimation_period_index++;
+			}
+			if ($decimation_maxmin) {
+				$decimation_max_buffer[$row['ts_index']] = max($row['val']-0, $decimation_max_buffer[$row['ts_index']]);
+				$decimation_min_buffer[$row['ts_index']] = is_null($decimation_min_buffer[$row['ts_index']])? $row['val']-0: min($row['val']-0, $decimation_min_buffer[$row['ts_index']]);
+				if (isset($_REQUEST['debug'])) {debug($row,'row');debug($decimation_min_buffer);}
+			}
+			if ($decimation_avg) {
+				if (empty($row['val'])) continue;
+				$decimation_avg_buffer[$row['ts_index']] += $row['val']-0;
+				$decimation_count_buffer[$row['ts_index']]++;
+			}
+			if ($decimation_mean) {
+				if (empty($row['val'])) continue;
+				$decimation_mean_buffer[$row['ts_index']][] = $row['val']-0;
+			}
+		}
+		$i = $decimation_samples_per_period;
+		if ($decimation_maxmin) {
+			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
+			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+			foreach ($decimation_min_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+		}
+		if ($decimation_avg) {
+			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
+			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+			foreach ($decimation_avg_buffer as $i=>$val) {emit_output($separator.($decimation_count_buffer[$i]>0? sprintf($format, $val/$decimation_count_buffer[$i]): $empty_val));}
+		}
+		if ($decimation_mean) {
+			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
+			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+			foreach ($decimation_mean_buffer as $i=>$val) {emit_output($separator.(count($val)>0? sprintf($format, calculate_median($val)): $empty_val));}
+		}
+		if ($decimation_maxmin) {
+			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
+			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+			foreach ($decimation_max_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+		}
+		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else emit_output($nl);
+		if (isset($_REQUEST['debug'])) {echo "extraction time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "memory_usage: ".memory_get_usage().", memory_limit: $memory_limit<br>\n";}
+		if (isset($_REQUEST['buffered_output'])) {if (!isset($_REQUEST['debug'])) header("Content-Length: ".strlen($output_buffer)); echo $output_buffer;}
+		if (defined('LOG_REQUEST')) {
+			log_request();
+		}
+		exit(0);
+	}
+
+	// ----------------------------------------------------------------
+	// format a date for PHPExcel
+	function xls_date($objPHPExcel, $timestamp, $cell) {
+		global $output_buffer;
+		$objPHPExcel->getActiveSheet()->setCellValue($cell, PHPExcel_Shared_Date::PHPToExcel($timestamp));
+		$objPHPExcel->getActiveSheet()->getStyle($cell)->getNumberFormat()->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_DATE_DATETIME);
+	}
+
 	// ----------------------------------------------------------------
 	// emit igor statistics
-	function emit_igor($data, $name) {
+	function emit_data_xls() {
+		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $skipdomain, $data_type_result;
+		if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
+		$memory_limit = ini_get('memory_limit');
+		if (preg_match('/^(\d+)(.)$/', $memory_limit, $matches)) {
+			if ($matches[2] == 'M') {
+				$memory_limit = $matches[1] * 1024 * 1024; // nnnM -> nnn MB
+			} else if ($matches[2] == 'K') {
+				$memory_limit = $matches[1] * 1024; // nnnK -> nnn KB
+			}
+		}
+		if (isset($_REQUEST['debug'])) debug($memory_limit);
+		$format = '%6.2e';
+		$time = 'UNIX_TIMESTAMP(data_time) AS time';
+		require_once strtr(dirname(__FILE__),array('lib/service'=>'lib/PHPExcel')).'/PHPExcel.php';
+		$objPHPExcel = new PHPExcel();
+		$objPHPExcel->getProperties()->setCreator("eGiga2m")->setLastModifiedBy("eGiga2m")->setTitle("eGiga2m")->setSubject("eGiga2m")->setDescription("Document for Office 2007 XLSX, generated using PHPExcel classes.")->setKeywords("office 2007 openxml php eGiga2m")->setCategory("eGiga2m");
+		$objPHPExcel->setActiveSheetIndex(0)->setCellValue('A1', 'time');
+		$xaxis = 1;
+		$ts_array  = $ts[$xaxis];
+		if (empty($ts_array)) return;
+		$ts_empty = array();
+		foreach ($ts_array as $ts_num=>$t) {
+			$ts_empty[$ts_num] = ' ';
+		}
+		$query_array = $old_data = $old_time = array();
+		foreach ($ts_array as $ts_num=>$ts_id_num) {
+			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
+			// if (isset($_REQUEST['debug'])) die("memory_usage: ".memory_get_usage());
+			$big_data_w = array();
+			$query = "SELECT * FROM adt WHERE ID={$ts_id_num[0]}";
+			if (isset($_REQUEST['debug'])) {debug($query, 'query');}
+			$res = mysqli_query($db, $query);
+			$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+			if (isset($_REQUEST['debug'])) debug($query);
+			$table = sprintf("att_{$ts_id_num[0]}");
+			$col_name = !$row['writable']? "value AS val": "read_value AS val";	
+			$dataxls[] = $row['full_name'];
+			$orderby = "data_time, ts_index";
+			if (isset($_REQUEST['zoh']) or isset($_REQUEST['foh'])) {
+				$query = "SELECT $time, UNIX_TIMESTAMP(data_time) AS t, $col_name FROM $table WHERE att_conf_id={$ts_id_num[0]} AND data_time <= '{$start[$xaxis-1]}' ORDER BY data_time DESC LIMIT 1";
+				$res = mysqli_query($db, $query);
+				if (isset($_REQUEST['debug'])) debug($query, 'zoh_query');
+				$zrow = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				$old_data[$ts_num] = sprintf($format, $zrow['val']-0);
+				$old_time[$ts_num] = $zrow['t']-0;
+				if (isset($_REQUEST['debug'])) {debug($zrow, 'row');debug($ts_num, 'ts_num');}
+			}
+			$query_array[$ts_num] = "SELECT $time, $col_name, $ts_num AS ts_index FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}";
+			$last_id = $ts_num;
+		}
+		$objPHPExcel->getActiveSheet()->fromArray($dataxls,NULL, 'B1');		
+		if (isset($_REQUEST['debug'])) echo "pre-execution time: ".(microtime(TRUE)-$t0)."<br>\n";
+		$max_id = $last_id;
+		for ($i=0; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];}
+		// UNION will remove duplicates. UNION ALL does not.
+		$query = implode(' UNION ', $query_array)." ORDER BY $orderby";
+		if (isset($_REQUEST['debug'])) {debug($query, 'big query'); $t0 = microtime(TRUE);}
+		$res = mysqli_query($db, $query); if (!$res) die($query.'; '.mysqli_error($db));
+		if (isset($_REQUEST['debug'])) {echo "execution time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "num_rows: ".mysqli_num_rows($res)."<br>\n"; $t0 = microtime(TRUE);}
+		$memory_threshold = $memory_limit*(isset($_REQUEST['buffered_output'])? 0.499: 0.999);
+		$y = 2;
+		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			if (memory_get_usage() > $memory_threshold) die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
+			if ($old_time[$row['ts_index']]==$row['t']) {
+				if ($last_id==$row['ts_index']) continue; 
+				for ($i=$last_id+1; $i<$row['ts_index']; $i++) {$dataxls[$i]=$old_data[$i];} 
+				$dataxls[$row['ts_index']]=sprintf($format, $row['val']-0);
+			}
+			else {
+				if (isset($_REQUEST['debug'])) {debug($row, 'row');debug($old_time, 'old_time');debug($old_data, 'old_data');debug($dataxls, 'dataxls');}
+				for ($i=$last_id+1; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];} 
+				xls_date($objPHPExcel, $row['time'], 'A'.$y); 
+				$dataxls[$row['ts_index']]=sprintf($format, $row['val']-0); 
+				$objPHPExcel->getActiveSheet()->fromArray($dataxls, NULL, 'B'.$y++);
+				for ($i=0; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];}
+				if (isset($_REQUEST['debug'])) {debug($old_data, 'old_data');debug($dataxls, 'dataxls');}
+				for ($i=0; $i<$row['ts_index']; $i++) {$dataxls[$i]=$old_data[$i];} 
+				if (isset($_REQUEST['zoh'])) $dataxls[$row['ts_index']]=sprintf($format, $row['val']-0);
+			}
+			$old_time[$row['ts_index']] = $row['t'];
+			$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): NULL;
+			$last_id = $row['ts_index'];
+		}
+		for ($i=$last_id+1; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];} 
+		header('Content-Type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment;filename="eGiga2m.xls"');
+		header('Cache-Control: max-age=0');
+		header('Cache-Control: max-age=1');
+		header ('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+		header ('Last-Modified: '.gmdate('D, d M Y H:i:s').' GMT'); // always modified
+		header ('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+		header ('Pragma: public'); // HTTP/1.0
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+		exit;
+	}
+
+	// ----------------------------------------------------------------
+	// emit data in text formats
+	function emit_data($data_type) {
+		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $querytime;
+		if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
+		$memory_limit = ini_get('memory_limit');
+		if (preg_match('/^(\d+)(.)$/', $memory_limit, $matches)) {
+			if ($matches[2] == 'M') {
+				$memory_limit = $matches[1] * 1024 * 1024; // nnnM -> nnn MB
+			} else if ($matches[2] == 'K') {
+				$memory_limit = $matches[1] * 1024; // nnnK -> nnn KB
+			}
+		}
+		if (isset($_REQUEST['debug'])) debug($memory_limit);
+		$time = 'UNIX_TIMESTAMP(time) AS timestamp, time';
+		if ($data_type=='itx') {
+			$nl = "\r\n";
+			$separator = "\t";
+		}
+		if ($data_type=='csv') {
+			$nl = "\n";
+			$separator = ",";
+		}
+		if ($data_type=='mat') {
+			emit_matlab_data($ts);
+		}
+		$format = '%'.(isset($_REQUEST['digit'])? $_REQUEST['digit']: '6.3e');
+		if (!isset($_REQUEST['debug'])) {
+			header("Content-Disposition: attachment; filename=eGiga2m.$data_type");
+			if ($data_type=='csv') header("Content-Type: application/csv");
+			if ($data_type=='itx') header("Content-Type: application/x-itx");
+		}
+		if ($data_type=='itx') emit_output("IGOR{$nl}WAVES/D timestamp"); else emit_output("timestamp");
+		$xaxis = 1;
+		$ts_array = $ts[$xaxis];
+		if (empty($ts_array)) return;
+		$ts_empty = array();
+		foreach ($ts_array as $ts_num=>$t) {
+			$ts_empty[$ts_num] = ' ';
+		}
+		$query_array = array();
+		foreach ($ts_array as $ts_num=>$ts_id_num) {
+			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
+			$big_data_w = array();
+			$query = "SELECT * FROM adt WHERE ID={$ts_id_num[0]}";
+			$res = mysqli_query($db, $query);
+			$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+			if ($data_type=='itx') {
+				// extract last part of naming in order to avoid "name or string too long" error
+				$name_array = explode('/', $row['full_name']);
+				$name = array_pop($name_array);
+				$n = array_pop($name_array);
+				// while (strlen($n) and (strlen($name)+strlen($n)<31)) {
+				if (strlen($n) and (strlen($name)+strlen($n)<31)) {
+					$name = $n.'_'.$name;
+					$n = array_pop($name_array);
+				}
+				if (isset($_REQUEST['debug'])) debug($name);
+				emit_output($separator.strtr($name, array("/"=>"_", "."=>"_", " "=>"_", "["=>"_", "]"=>"_"))); 
+			}
+			else emit_output($separator.$row['full_name']);
+			if (isset($_REQUEST['debug'])) debug($query);
+			$table = sprintf("att_{$ts_id_num[0]}");
+			$col_name = !$row['writable']? "value AS val": "read_value AS val";
+			$old_data[$ts_num] = ($data_type=='itx')? "NAN": NULL;
+			if (isset($_REQUEST['zoh']) or isset($_REQUEST['foh'])) {
+				$query = "SELECT $time, $col_name FROM $table WHERE time <= '{$start[$xaxis-1]}' ORDER BY time DESC LIMIT 1";
+				$res = mysqli_query($db, $query);
+				if (isset($_REQUEST['debug'])) debug($query);
+				$zrow = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				$old_data[$ts_num] = sprintf($format, $zrow['val']-0);
+				$old_time[$ts_num] = $zrow['timestamp']-0;
+				if (isset($_REQUEST['debug'])) {debug($zrow, 'row');debug($ts_num, 'ts_num');}
+			}
+			$query_array[$ts_num] = "SELECT $time, $col_name, $ts_num AS ts_index FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}";
+			$last_id = $ts_num;
+		}
+		if ($data_type=='itx') emit_output("{$nl}BEGIN"); else emit_output($nl);
+		$max_id = $last_id;
+		// UNION will remove duplicates. UNION ALL does not.
+		$query = implode(' UNION ', $query_array).' ORDER BY time, ts_index';
+		if (isset($_REQUEST['debug'])) {echo "<br>pre-query execution time: ".(microtime(TRUE)-$t0)."<br>\n"; debug($query); $t0 = microtime(TRUE);}
+		$res = mysqli_query($db, $query);
+		$querytime -= microtime(true);
+		$res = mysqli_query($db, $query);
+		$querytime += microtime(true);
+		if (isset($_REQUEST['debug'])) {echo "<br>query execution time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "num_rows: ".mysqli_num_rows($res)."<br>\n"; $t0 = microtime(TRUE);}
+		$memory_threshold = $memory_limit*(isset($_REQUEST['buffered_output'])? 0.499: 0.999);
+		if (isset($_REQUEST['decimation'])) {
+			emit_data_decimated($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format);
+		}
+		if (isset($_REQUEST['foh'])) {
+			emit_data_foh($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format, $old_data, $old_time);
+		}
+		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			if (memory_get_usage()>$memory_threshold) die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
+			if ($old_time[$row['ts_index']]==$row['timestamp']) {
+				if ($last_id==$row['ts_index']) continue; 
+				for ($i=$last_id+1; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
+				emit_output($separator.sprintf($format, $row['val']-0));
+			}
+			else {
+				for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
+				emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: $row['time']));
+				for ($i=0; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
+				emit_output($separator.sprintf($format, $row['val']-0));
+			}
+			$old_time[$row['ts_index']] = $row['timestamp'];
+			$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): ($data_type=='itx'? "NAN": NULL);
+			$last_id = $row['ts_index'];
+		}
+		for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
+		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else emit_output($nl);
+		if (isset($_REQUEST['debug'])) {echo "extraction time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "memory_usage: ".memory_get_usage().", memory_limit: $memory_limit<br>\n";}
+		if (isset($_REQUEST['buffered_output'])) {if (!isset($_REQUEST['debug'])) header("Content-Length: ".strlen($output_buffer)); echo $output_buffer;}
+		if (defined('LOG_REQUEST')) {
+			log_request();
+		}
+		exit(0);
+	}
+
+	// ----------------------------------------------------------------
+	// emit igor statistics
+	function emit_igor_data($data, $name) {
 		$nl = "\r\n";
 		$buff = "IGOR{$nl}WAVES/D timestamp";
 		foreach ($name as $label) {
@@ -117,7 +577,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		}
 		$buff .= "{$nl}BEGIN{$nl}";
 		foreach ($data as $t=>$v) {
-			$buff .= strtotime($t)+2082844800; // date("d-m-Y H:i:s", $t);
+			$buff .= $t+2082844800; // date("d-m-Y H:i:s", $t);
 			foreach ($v as $val) {
 				$buff .= "\t".($val==="-"? "NAN": sprintf("%e", $val));
 			}
@@ -155,7 +615,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	$mat = $xls = $csv = $igor = false;
 	$merged_var = true;
 	if (isset($_REQUEST['format'])) {
-		if ($_REQUEST['format']=='mat') {
+		if ($_REQUEST['format']=='mat4') {
 			$mat = true;
 			$old_error_reporting = error_reporting(0);
 			include("../php2mat.php");
@@ -179,7 +639,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$separator = isset($_REQUEST['separator'])? $_REQUEST['separator']: ',';
 			$string_continer = isset($_REQUEST['string_continer'])? $_REQUEST['string_continer']: '';
 		}
-		if ($_REQUEST['format']=='igor') {
+		if ($_REQUEST['format']=='itx') {
 			$igor = true;
 		}
 		$filename = isset($_REQUEST['filename'])? $_REQUEST['filename']: 'egiga2m.'.$_REQUEST['format'];
@@ -187,6 +647,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 
 
 	$start = explode(';', $_REQUEST['start']);
+	$start_timestamp[0] = strtotime($start[0]);
 	foreach ($start as $k=>$val) {
 		$start[$k] = parse_time($val);
 		$stop[$k] = ' AND time <= NOW() + INTERVAL 2 HOUR';
@@ -199,6 +660,11 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$stop[$k] = strlen($val)? " AND time < '$time'": ' AND time <= NOW() + INTERVAL 2 HOUR';
 			$stop_timestamp[$k] = strlen($val)? strtotime($time): time();
 		}
+	}
+
+	if (isset($_REQUEST['sampling'])) {
+		$sampling_maxmin = strpos($_REQUEST['sampling'], 'maxmin')!==false;
+		$sampling_mean = strpos($_REQUEST['sampling'], 'mean')!==false;
 	}
 
 	$ts_array = explode(';', $_REQUEST["ts"]);
@@ -220,8 +686,44 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	$ts_counter = 0;
 	$type = 'num';
 	$csv_header = $data = array();
+	if ($_REQUEST['format']=='igor') {
+		emit_data('itx');
+	}
+	if ($_REQUEST['format']=='csv') {
+		emit_data('csv');
+	}
+	if ($_REQUEST['format']=='mat') {
+		emit_data('mat');
+	}
 	foreach ($ts as $xaxis=>$ts_array) {
-	  if (!$merged_var) {
+	  if ($_REQUEST['format']=='mat5') {
+        include("../php2mat.php");
+        $php2mat = new php2mat();
+        $php2mat->php2mat5_head('eGiga2m.mat', "Created on: ".date("d-F-Y H:i:s"));
+        list($h, $platform, $g) = explode(";", strtr($_SERVER["HTTP_USER_AGENT"], array("(" => ";")), 3);
+		foreach ($ts_array as $ts_num=>$ts_id_num) {
+			$res = mysqli_query($db, "SELECT * FROM adt WHERE ID={$ts_id_num[0]}");
+			$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+			$full_name = strtr($row['full_name'],array('/'=>'_'));
+			$table = sprintf("att_{$ts_id_num[0]}");
+			$col_name = !$row['writable']? "value AS val": "read_value AS val";
+			$orderby = "time";
+			$dim = $row['data_format'];
+			$tm = "UNIX_TIMESTAMP(time) / 86400 + 719519"; // UNIX_TIMESTAMP(time) / 86400 + datenum('01/01/1970');";
+			$query = "SELECT time, $tm AS t, $col_name FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
+			$res = mysqli_query($db, $query);
+			$php2mat->php2mat5_var_init($full_name, 2, mysqli_num_rows($res));
+			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				$php2mat->php2mat5_var_addrow($row['t']);
+			}
+			$res = mysqli_query($db, $query);
+			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				$php2mat->php2mat5_var_addrow($row['val']-0);
+			}
+		}
+		exit();
+	  }
+	  else if (!$merged_var) {
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
 			$big_data_w = array();
 			$res = mysqli_query($db, "SELECT * FROM adt WHERE ID={$ts_id_num[0]}");
@@ -252,6 +754,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$ts_empty[$k] = ' ';
 		}
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
+			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
 			$big_data_w = array();
 			$query = "SELECT * FROM adt WHERE ID={$ts_id_num[0]}";
 			$res = mysqli_query($db, $query);
@@ -296,13 +799,21 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			}
 			$orderby = "time";
 			$dim = $row['data_format'];
+			// $union = $pretimer? " UNION (UNIX_TIMESTAMP(time) AS t, SELECT time, $col_name FROM $table WHERE time <= '{$start[$xaxis-1]}' ORDER BY time DESC LIMIT 1)": '';
 			$union = $pretimer? " UNION (SELECT time, $col_name FROM $table WHERE time <= '{$start[$xaxis-1]}' ORDER BY time DESC LIMIT 1)": '';
+			// $query = "SELECT UNIX_TIMESTAMP(time) AS t, {$timeformat}time, $col_name FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$union ORDER BY $orderby";
 			$query = "SELECT {$timeformat}time, $col_name FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$union ORDER BY $orderby";
+			if (isset($_REQUEST['debug'])) debug($query);
 			// debug($query); exit(0);
 			// if (isset($_REQUEST['timeformat'])) die($query);
+			$querytime -= microtime(true);
 			$res = mysqli_query($db, $query);
+			$querytime += microtime(true);
+			if (isset($_REQUEST['debug'])) echo "num_rows: ".mysqli_num_rows($res)."<br>\n";
 			// if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', $query);
+			if (isset($_REQUEST['debug'])) {$debug_counter = 0;}
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				if (isset($_REQUEST['debug'])) {$debug_counter++; if (($debug_counter<4) and ($ts_num==0)) {debug($data);}  if ($debug_counter%1000==0) {debug($debug_counter); echo "memory_usage: ".memory_get_usage()."<br>\n";}}
 				// if (!isset($data[$row['time']])) $data[$row['time']] = array_merge($ts_array, array_fill(0,count($ts_array), ''));
 				if (!isset($data[$row['time']])) $data[$row['time']] = $ts_empty;
 				// debug($data[$row['time']]);
@@ -328,15 +839,13 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		}
 	  }
 	}
+if (isset($_REQUEST['debug'])) echo "count(data): ".count($data)."<br>\n";
 	
 	ksort($data);
-	// if (isset($_REQUEST['debug'])) {debug($data); exit();}
-//http://fcsproxy.elettra.trieste.it/docs/egiga2m/lib/service/hdb_export_service.php?start=2015-06-18%2003:40:00&stop=2015-06-18%2003:45:00&ts=00196,1,1;00214,1,1&conf=fermi&export=csv&separator=%09&filename=2015-06-18.csv
 	if ($mat) {
 		$php2mat->SendFile("eGiga2m.mat", $big_data, "eGiga2m, Platform: $platform, Created on: ".date("d-F-Y H:i:s"));
-		exit();
 	}
-	if ($xls) {
+	else if ($xls) {
 		foreach ($data as $time=>$v) {
 			if (isset($_REQUEST['zoh'])) {foreach ($v as $i=>$val) {if ($val==$ts_empty[$i]) $v[$i] = $old_data[$i]; else $old_data[$i] = $val;}}
 			array_unshift($v, $time);
@@ -345,9 +854,8 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		// debug($myxls->Data);
 		$myxls->FileName = $filename;
 		$myxls->SendFile();
-		exit();
 	}
-	if ($csv) {
+	else if ($csv) {
 		if (!isset($_REQUEST['debug']))  {
 			header("Content-Type: application/csv");
 			header("Content-Disposition: attachment; filename=\"$filename\"");
@@ -369,11 +877,14 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			}
 			echo "\n";
 		}
-		// debug($myxls->Data);
-		exit();
 	}
-	if ($igor) {
-		emit_igor($data, $csv_header);
+	else if ($igor) {
+		emit_igor_data($data, $csv_header);
 	}
+
+	if (defined('LOG_REQUEST')) {
+		log_request();
+	}
+
 	
 ?>
