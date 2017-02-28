@@ -70,6 +70,7 @@ Clicking the third time on the same time series will remove it from the plot <im
 The "Show" button will create/update the plot using all the selected configurations.<br>
 
 
+<a name='link'></a><br>
 <h3>Configurations</h3>
 
 <h4>Link</h4>
@@ -83,31 +84,49 @@ click on the back button "&lt;" near the "show" button.<br>
 The "restart from scratch" link deselects all the options that has been selected.<br>
 The "multiplot" form splits the window into two or more sub-windows. Each sub-window can be split again in a recursive
 manner. Once split, each sub-window will show the same plot shown by the original (sub)window. By clicking over a
-sub-window plot, the controls allow to change the plot<br>
-
+sub-window plot, the controls allow to change the plot.
+		
+<a name='export'></a><br><br>
 <h4>Export</h4>
 This <a href='https://en.wikipedia.org/wiki/Modal_window'>modal</a> is used to export numerical data in a file. CSV,
-XLS (limited support), MAT and ITX file format are provided.<br>
-A CSV file includes all time series in a single table, the first column is the merge of the timestamps of all time
-series, the other columns are one per time series; where undefined a time series is filled with a blank value unless.you select
-the option to fill with the previous value or with the linear interpolation.<br>
-An XLS file includes all time series in a single table in an XML format compatible with most versions of Microsoft<sup>&#169;</sup>
-Excel<sup>&#169;</sup>, OpenOffice&#8482; Calc&#8482; and LibreOffice<sup>&#169;</sup> Calc<sup>&#169;</sup>. 
-If your version isn't compatible, please use CSV format.<br>
-A MAT file includes each time series in a separate variable according to 
-<a href='http://www.mathworks.com/help/pdf_doc/matlab/matfile_format.pdf'>level 5 MAT format</a> by MATLAB<sup>&#174;</sup>.<br>
-An ITX file includes each time series in a separate variable according to IGOR Pro<sup>&#169;</sup> specifications.<br>
-Plot creation isn't necessary before data export. I.E. you can just select time and time series and click on export 
-links without clicking on "show" button.<br>
-If you are using Flot you can export graphs only in PNG format clicking the "export to png" button near the "show" button.
-If you are using HighCharts you can export in PDF, PNG, JPG and SVG from the menu on the upper left corner of the plot.<br>
+XLS, MAT and ITX file format are provided.<br>
+In the case of CSV XLS and ITX format, all Time series are included in a single table, the first column is the merge of the timestamps of all 
+Time series, the other columns are one per Time series; where undefined a time series is filled with a blank value unless you select
+the option to fill with the previous value or with the linear interpolation; You can choose to decimate Time series specifying the
+number of samples you want and the method used for the decimation. Maximum-minimum (default) will preserve all spikes, mean will remove (most) spikes,
+avg will keep average unmodified.<br>
+Time series names can be overridden filling the "TS Label" field. Each TS name must be separated from the following one by a semicolon ';'.<br>
+Plot creation isn't necessary before data export. I.E. you can just select time and Time series and click on export 
+links without clicking on "show" button.<br><br>
 
+A <span style="color: red">CSV</span> file includes all time series in a single table, the first row specifies the Time series names without
+almost any limitation (only comma and semicolon are forbidden). Data is sent to the output file chunk by chunk as extracted from the database.<br>
+
+A <span style="color: red">MAT</span> file includes each time series in a separate variable. The <a href='https://github.com/luciozambon/php2mat'>php2mat</a> library has been included
+which implements the <a href='http://www.mathworks.com/help/pdf_doc/matlab/matfile_format.pdf'>level 5 MAT format</a> by MATLAB<sup>&#174;</sup>. This format impose some restrictions
+on the Time series names in regards to length and <a href='http://it.mathworks.com/help/matlab/matlab_prog/variable-names.html'>admitted characters</a>. In some cases 
+the "TS Label" field may be useful. Data is sent to the output file chunk by chunk as extracted from the database.<br>
+
+An <span style="color: red">XLS</span> file includes all time series in a single table, the first row specifies the Time series names without
+almost any limitation (only comma and semicolon are forbidden). The <a href='https://github.com/PHPOffice/PHPExcel'>PHPExcel</a> library has been included.
+It is compatible with most versions of Microsoft<sup>&#169;</sup> Excel<sup>&#169;</sup>, OpenOffice&#8482; Calc&#8482; and LibreOffice<sup>&#169;</sup> Calc<sup>&#169;</sup>. 
+If your version isn't compatible, please use CSV format. All data is loaded in memory and than is saved in a file. Memory limits may prevent the download of large files.<br>
+
+An <span style="color: red">ITX</span> file includes all time series in a single table according to IGOR Pro<sup>&#169;</sup> specifications.This format impose some restrictions
+on the Time series names in regards to length and <a href='http://www.wavemetrics.net/doc/igorman/II-07%20Num%20Str%20Variables.pdf'>admitted characters</a>. In some cases 
+the "TS Label" field may be useful. Data is sent to the output file chunk by chunk as extracted from the database.<br><br>
+
+If you are using Flot you can export graphs only in PNG format clicking the "export to png" button near the "show" button.
+If you are using HighCharts you can export in PDF, PNG, JPG and SVG from the menu on the upper left corner of the plot.
+
+<a name='config'></a><br><br>
 <h4>Config</h4>
 This <i>modal</i> is used to configure maximum, minimum and logarithmic scale for Y1 and Y2 axis.<br>
 You can show the numeric data in a table.<br>
 You can select the graphic library: Flot or HighCharts (if available). Only for HighCharts you can select 
-the line style, too.<br>
+the line style, too.
 
+<a name='events'></a><br><br>
 <h4>Events</h4>
 Events are shown as icons inside the plot area.<br>
 Events are organized in sets, each set normally has it's own icon.<br>
@@ -118,16 +137,18 @@ Events are available only if supported by the plot web service (see below).<br>
 Errors are the only set of events recognized by eGiga2m. The label of the time series is added along the description. 
 Errors are shown by default, all other events must be checked in the "Config" modal.<br>
 Events can be hidden/shown by clicking on the legend.<br>
-A filter can be attached to any event. Only events whose description will fully match the filter string wil be shown.
+A filter can be attached to any event. Only events whose description will fully match the filter string will be shown.
 Case sensitiveness of filter match is dependent on database and web service settings, normally it is case unsensitive. 
 If you want to match only a substring of description you can use wildcards (*). E.g. *voltage*.<br>
-Events are available only for Highcharts installations.<br>
+Events are available only for Highcharts installations.
 
 
+<a name='search'></a><br><br>
 <h4>Search</h4>
-This <i>modal</i> is used to search in the time series full name list. The '%' character is the jolly as in SQL.<br>
+This <i>modal</i> is used to search in the time series full name list. The '%' character is the jolly as in SQL.
 
 
+<a name='drag-and-drop'></a><br><br>
 <h3>Drag-and-drop</h3>
 
 There are two areas where some content may be dropped on.<br>
@@ -193,4 +214,3 @@ The third web service is used to export data in some standard file formats.
 	<script src="../lib/bootstrap/docs.js"></script>
 
 </body></html>
-
