@@ -34,7 +34,7 @@
 
 	<style type="text/css" id="holderjs-style"></style>
 
-
+  
 	<!-- WebGL_Surface_Plot
 	================================================== -->
 	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
@@ -76,7 +76,6 @@
 			vColor = aVertexColor;
 		}
 	</script>
-
 	<script id="axes-shader-fs" type="x-shader/x-fragment">
 		precision mediump float;
 		varying vec4 vColor;
@@ -85,7 +84,6 @@
 			gl_FragColor = vColor;
 		}
 	</script>
-	
 	<script id="axes-shader-vs" type="x-shader/x-vertex">
 		attribute vec3 aVertexPosition;
 		attribute vec4 aVertexColor;
@@ -99,7 +97,6 @@
 			vColor =  vec4(uAxesColour, 1.0);
 		} 
 	</script>
-
 	<script id="texture-shader-fs" type="x-shader/x-fragment">
 		#ifdef GL_ES
 		precision highp float;
@@ -111,7 +108,6 @@
 			gl_FragColor = texture2D(uSampler, vTextureCoord);
 		}
 	</script>
-
 	<script id="texture-shader-vs" type="x-shader/x-vertex">
 		attribute vec3 aVertexPosition;
 		attribute vec2 aTextureCoord;
@@ -179,7 +175,7 @@
 					</div>
 					<div class="input-group">
 						<div>
-						<table><tr><td>
+						 <table><tr><td>
 							<div class="input-group">
 								<span class="input-group-btn">
 									<button class="btn btn-default" type="button" id='myBack' onClick="add_history(-1)" style='display:none'>&lt;</button>&nbsp;
@@ -187,7 +183,7 @@
 									<button class="btn btn-default" type="button" id='myFwd' onClick="add_history(1)" style='display:none'>&gt;</button><br>
 								</span>
 							</div><!-- /input-group -->
-						</td><td>&nbsp;&nbsp;&nbsp;</td></tr></table>
+						 </td><td>&nbsp;&nbsp;&nbsp;</td></tr></table>
 							<br><button class="btn btn-default" type="button" onClick="pngCallback()" id="pngCallback" style="display:none">export to png</button>
 							<div class="btn-group dropup">
 								<button type="button" onClick="update_see_also()" id="see_also_button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="display: none;">
@@ -271,13 +267,25 @@
 				<h4 class="modal-title" id="exportModalLabel">Export</h4>
 			</div>
 			<div class="modal-body">
-				Format: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type='radio' id='exportCsv' name='exportFormat' value='CSV' checked>&nbsp;CSV&nbsp;&nbsp;&nbsp;&nbsp;
+				Format<sup><a href='./doc/index.html#export' target='_blank'>(?)</a></sup>: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type='radio' id='exportCsv' name='exportFormat' value='CSV' checked>&nbsp;CSV&nbsp;&nbsp;&nbsp;&nbsp;
 				<input type='radio' id='exportXls' name='exportFormat' value='XLS' OnChange='return false;'>&nbsp;XLS&nbsp;&nbsp;&nbsp;&nbsp;
 				<input type='radio' id='exportMat' name='exportFormat' value='MAT' OnChange='return false;'>&nbsp;MAT&nbsp;&nbsp;&nbsp;&nbsp;
 				<input type='radio' id='exportIgor' name='exportFormat' value='ITX' OnChange='return false;'>&nbsp;ITX&nbsp;<br><br>
-				Fill undefined values with: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type='radio' id='exportBlanks' name='exportFill' value='NOH' checked>&nbsp;blanks&nbsp;&nbsp;&nbsp;&nbsp;
-				<input type='radio' id='exportZoh' name='exportFill' value='ZOH'>&nbsp;previous value&nbsp;&nbsp;&nbsp;&nbsp;
-				<input type='radio' id='exportFoh' name='exportFill' value='FOH'>&nbsp;linear interpolation&nbsp;&nbsp;&nbsp;&nbsp;<br><br><br>
+				<div id='matDisabled' style='display:inline'>
+					Fill undefined values with<sup><a href='./doc/index.html#export' target='_blank'>(?)</a></sup>: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+					<input type='radio' id='exportBlanks' name='exportFill' value='NOH' checked>&nbsp;blanks&nbsp;&nbsp;&nbsp;&nbsp;
+					<input type='radio' id='exportZoh' name='exportFill' value='ZOH'>&nbsp;previous value&nbsp;&nbsp;&nbsp;&nbsp;
+					<input type='radio' id='exportFoh' name='exportFill' value='FOH'>&nbsp;linear interpolation&nbsp;&nbsp;&nbsp;&nbsp;<br><br><br>
+					Number of samples<sup><a href='./doc/index.html#export' target='_blank'>(?)</a></sup>: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+					<input type='text' id='exportSamplesNumber' name='exportSamplesNumber' value='1000' size='5'>&nbsp;&nbsp;&nbsp;&nbsp;<br><br>
+					Sampling method: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+					<input type='checkbox' id='exportMaxmin' name='exportSamplingMethod' value='maxmin'>&nbsp;maximum minimum&nbsp;&nbsp;&nbsp;&nbsp;
+					<input type='checkbox' id='exportMean' name='exportSamplingMethod' value='mean'>&nbsp;median&nbsp;&nbsp;&nbsp;&nbsp;
+					<input type='checkbox' id='exportAvg' name='exportSamplingMethod' value='avg'>&nbsp;average&nbsp;&nbsp;&nbsp;&nbsp;<br><br>
+				</div><br>
+				TS Label<sup><a href='./doc/index.html' target='_blank'>(?)</a></sup>:<br><br>
+				<input id='tsLabel' name='tsLabel' type='text' placeholder='label1;label2;label3' size='100%'><br>
+				<br><br>
 				&nbsp;&nbsp;export<br><a id='exportLink'>not available jet</a><br><br>
 			</div>
 			<div class="modal-footer">
@@ -334,7 +342,7 @@
 						<label> <input type="checkbox" onChange="change_hc()" id='show_hc' checked> HighCharts</label>
 					</div><br><br>
 					&nbsp;&nbsp;<label>Style</label> &nbsp;&nbsp;&nbsp;
-					<select id='styleSet'>
+					<select id='styleSet'>fill
 						<option value=''></option>
 						<option id='style_scatter' value='scatter'>scatter</option>
 						<option id='style_step' value='step'>step</option>
@@ -373,7 +381,7 @@
 			<div class="modal-body">
 				&nbsp;&nbsp;<a href='./doc' target='doc'>Documentation</a><br>
 				&nbsp;&nbsp;<a href='./doc/faq.html' target='faq'>FAQ</a><br>
-				<hr>
+			<hr>
 				&nbsp;&nbsp;<label>eGiga2m</label> is synonym of <label>eGiga--</label><br><br>
 				&nbsp;&nbsp;Version:&nbsp;&nbsp;&nbsp;&nbsp;<span id='aboutVersion'></span><br><br>
 				&nbsp;&nbsp;<label>E</label>lectronic<br>
@@ -425,12 +433,11 @@
 	<script src="./lib/fancytree-2.3.0/src/jquery.fancytree.table.js" type="text/javascript"></script>
 	<script src="./lib/fancytree-2.3.0/src/jquery.fancytree.columnview.js" type="text/javascript"></script>
 
-	<!-- HighCharts -->
-	<!-- HighCharts has a double license policy, uncomment this part only if you have a valid license and you have installed it in ./lib/Highcharts
+	<!-- HighChart -->
 	<script>var isHighChartsInstalled=true;</script>
 	<script src="./lib/Highcharts/highcharts.js"></script>
 	<script src="./lib/Highcharts/modules/exporting.js"></script>
-	-->
+	<script src="./lib/Highcharts/modules/no-data-to-display.js"></script>
 
 	<!-- flot chart -->
 	<!--[if lte IE 8]><script language='javascript' type='text/javascript' src='./lib/flot/excanvas.min.js'></script><![endif]-->
