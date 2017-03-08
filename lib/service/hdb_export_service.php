@@ -129,12 +129,16 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		include_once("../php2mat.php");
 		$php2mat = new php2mat();
 		$php2mat->php2mat5_head('eGiga2m.mat', "Created on: ".date("d-F-Y H:i:s"));
+		$label_num = 0;
+		$tsLabel = array();
+		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', $_REQUEST['tsLabel']);}
 		foreach ($ts as $xaxis=>$ts_array) {
 			foreach ($ts_array as $ts_num=>$ts_id_num) {
 				if (isset($_REQUEST['debug'])) debug($ts_id_num,'ts_id_num');
 				$res = mysqli_query($db, "SELECT * FROM adt WHERE ID={$ts_id_num[0]}");
 				$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
-				$full_name = strtr($row['full_name'],array('/'=>'_'));
+				$full_name = strtr(isset($tsLabel[$label_num])? $tsLabel[$label_num]: $row['full_name'],array('/'=>'_'));
+				$label_num++;
 				$table = sprintf("att_{$ts_id_num[0]}");
 				$col_name = !$row['writable']? "value AS val": "read_value AS val";
 				$orderby = "time";
@@ -186,12 +190,32 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	}
 
 	// ----------------------------------------------------------------
+	// emit a row
+	function emit_row($data_type, $t, $v, $nl, $separator, $format) {
+		global $y;
+		$empty_val = $data_type=='itx'? "NAN": NULL;
+		if ($data_type=='xls') {
+			$objPHPExcel = $nl;
+			xls_date($objPHPExcel, $t, 'A'.$y);
+			$objPHPExcel->getActiveSheet()->fromArray($v, NULL, 'B'.$y++);
+		}
+		else {
+			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
+			foreach ($v as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+		}
+	}
+
+	// ----------------------------------------------------------------
 	// emit data with linear filling of missing values
 	function emit_data_foh($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format, $old_data, $old_time) {
-		global $db, $pretimer, $start, $stop, $output_buffer, $start_timestamp, $stop_timestamp;
+		global $db, $pretimer, $start, $stop, $output_buffer, $start_timestamp, $stop_timestamp, $y;
+		if ($data_type=='xls') $objPHPExcel = $nl;
 		$empty_val = $data_type=='itx'? "NAN": NULL;
 		$time_buffer = array();
 		$data_buffer = array(array_fill(0, $max_id+1, null));
+		$y = 2;
+		if (isset($_REQUEST['debug'])) {$nl = "<br>\n";}
+		if (isset($_REQUEST['debug'])) echo "in_array(null, array(1,2,0.1), true): ".(in_array(null, array(1,2,0.1), true)? 'true': 'false')."<br>\n";
 		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 			if (empty($data_buffer[0][$row['ts_index']])) {
 				$data_buffer[0][$row['ts_index']] = linear_interpolation($old_time[$row['ts_index']], $old_data[$row['ts_index']], $row['timestamp'], $row['val']-0, $start_timestamp[0]);
@@ -216,17 +240,25 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			}
 			$new_data[$row['ts_index']] = $row['val']-0;
 			$data_buffer[] = $new_data;
-			while (!in_array(null, $data_buffer[1])) {
+			while ((count($data_buffer)>1) and (!in_array(null, $data_buffer[1], true))) {
 				if (isset($_REQUEST['debug'])) debug($data_buffer, 'data_buffer');
 				$t = array_shift($time_buffer);
-				emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
 				$v = array_shift($data_buffer);
-				foreach ($v as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+				emit_row($data_type, $t, $v, $nl, $separator, $format);
 			}
 			if (isset($_REQUEST['debug'])) {debug($data_buffer, 'data_buffer__');debug($time_buffer, 'time_buffer__');}
 		}
+		while (count($data_buffer)>1) {
+			if (isset($_REQUEST['debug'])) debug($data_buffer, 'data_buffer');
+			$t = array_shift($time_buffer);
+			$v = array_shift($data_buffer);
+			emit_row($data_type, $t, $v, $nl, $separator, $format);
+		}
+		$t = array_shift($time_buffer);
+		$v = array_shift($data_buffer);
+		emit_row($data_type, $t, $v, $nl, $separator, $format);
 		// is there a tail to append?
-		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else emit_output($nl);
+		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else if ($data_type=='csv') emit_output($nl); else if ($data_type=='xls') emit_tail_xls($objPHPExcel);
 		if (isset($_REQUEST['debug'])) {echo "extraction time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "memory_usage: ".memory_get_usage().", memory_limit: $memory_limit<br>\n";}
 		if (isset($_REQUEST['buffered_output'])) {if (!isset($_REQUEST['debug'])) header("Content-Length: ".strlen($output_buffer)); echo $output_buffer;}
 		if (defined('LOG_REQUEST')) {
@@ -238,7 +270,8 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	// ----------------------------------------------------------------
 	// emit decimated data in text formats
 	function emit_data_decimated($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format) {
-		global $db, $pretimer, $start, $stop, $output_buffer, $start_timestamp, $stop_timestamp;
+		global $db, $pretimer, $start, $stop, $output_buffer, $start_timestamp, $stop_timestamp, $y;
+		if ($data_type=='xls') $objPHPExcel = $nl;
 		$start_t = $start_timestamp[0];
 		$stop_t = $stop_timestamp[0];
 		$empty_val = $data_type=='itx'? "NAN": NULL;
@@ -256,35 +289,31 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		if (isset($_REQUEST['debug'])) {debug($decimation_max_buffer); debug($decimation_avg_buffer);}
 		$decimation_period_index = 1;
 		$parts = $decimation_period/($decimation_samples_per_period+1);
+		$y = 2;
 		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 			if (memory_get_usage()>$memory_threshold) die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
 			if ($start_t+$decimation_period_index*$decimation_period < $row['timestamp']) {
 				$i = $decimation_samples_per_period;
 				if ($decimation_maxmin) {
-					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
-					$i--;
-					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-					foreach ($decimation_min_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
+					emit_row($data_type, $t, $decimation_min_buffer, $nl, $separator, $format);
 					if (isset($_REQUEST['debug'])) {debug($decimation_max_buffer);}
 				}
 				if ($decimation_mean) {
-					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
-					$i--;
-					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-					foreach ($decimation_mean_buffer as $i=>$val) {emit_output($separator.(count($val)>0? sprintf($format, calculate_median($val)): $empty_val));}
+					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
+					$v = array(); foreach ($decimation_mean_buffer as $val) {$v[] = calculate_median($val);}
+					emit_row($data_type, $t, $v, $nl, $separator, $format);
 					$decimation_mean_buffer = array_fill(0, $max_id+1, array());
 				}
 				if ($decimation_avg) {
-					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
-					$i--;
-					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-					foreach ($decimation_avg_buffer as $i=>$val) {emit_output($separator.($decimation_count_buffer[$i]>0? sprintf($format, $val/$decimation_count_buffer[$i]): $empty_val));}
+					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
+					$v = array(); foreach ($decimation_avg_buffer as $i=>$val) {$v[] = $val/$decimation_count_buffer[$i];}
+					emit_row($data_type, $t, $v, $nl, $separator, $format);
 					$decimation_avg_buffer = $decimation_count_buffer = array_fill(0, $max_id+1, 0);
 				}
 				if ($decimation_maxmin) {
 					$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
-					emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-					foreach ($decimation_max_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+					emit_row($data_type, $t, $decimation_max_buffer, $nl, $separator, $format);
 					$decimation_max_buffer = $decimation_min_buffer = array_fill(0, $max_id+1, null);
 				}
 				$decimation_period_index++;
@@ -307,25 +336,23 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		$i = $decimation_samples_per_period;
 		if ($decimation_maxmin) {
 			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
-			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-			foreach ($decimation_min_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
-		}
-		if ($decimation_avg) {
-			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
-			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-			foreach ($decimation_avg_buffer as $i=>$val) {emit_output($separator.($decimation_count_buffer[$i]>0? sprintf($format, $val/$decimation_count_buffer[$i]): $empty_val));}
+			emit_row($data_type, $t, $decimation_min_buffer, $nl, $separator, $format);
 		}
 		if ($decimation_mean) {
 			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
-			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-			foreach ($decimation_mean_buffer as $i=>$val) {emit_output($separator.(count($val)>0? sprintf($format, calculate_median($val)): $empty_val));}
+			$v = array(); foreach ($decimation_mean_buffer as $val) {$v[] = calculate_median($val);}
+			emit_row($data_type, $t, $v, $nl, $separator, $format);
+		}
+		if ($decimation_avg) {
+			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts; $i--;
+			$v = array(); foreach ($decimation_avg_buffer as $i=>$val) {$v[] = $val/$decimation_count_buffer[$i];}
+			emit_row($data_type, $t, $v, $nl, $separator, $format);
 		}
 		if ($decimation_maxmin) {
 			$t = $start_t + $decimation_period_index*$decimation_period - $i*$parts;
-			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-			foreach ($decimation_max_buffer as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+			emit_row($data_type, $t, $decimation_max_buffer, $nl, $separator, $format);
 		}
-		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else emit_output($nl);
+		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else if ($data_type=='csv') emit_output($nl); else if ($data_type=='xls') emit_tail_xls($objPHPExcel);
 		if (isset($_REQUEST['debug'])) {echo "extraction time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "memory_usage: ".memory_get_usage().", memory_limit: $memory_limit<br>\n";}
 		if (isset($_REQUEST['buffered_output'])) {if (!isset($_REQUEST['debug'])) header("Content-Length: ".strlen($output_buffer)); echo $output_buffer;}
 		if (defined('LOG_REQUEST')) {
@@ -343,7 +370,22 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	}
 
 	// ----------------------------------------------------------------
-	// emit igor statistics
+	// emit tail of xls data
+	function emit_tail_xls($objPHPExcel) {
+		header('Content-Type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment;filename="eGiga2m.xls"');
+		header('Cache-Control: max-age=0');
+		header('Cache-Control: max-age=1');
+		header ('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+		header ('Last-Modified: '.gmdate('D, d M Y H:i:s').' GMT'); // always modified
+		header ('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+		header ('Pragma: public'); // HTTP/1.0
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		$objWriter->save('php://output');
+	}
+
+	// ----------------------------------------------------------------
+	// emit data in xls format
 	function emit_data_xls() {
 		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $skipdomain, $data_type_result;
 		if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
@@ -357,7 +399,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		}
 		if (isset($_REQUEST['debug'])) debug($memory_limit);
 		$format = '%6.2e';
-		$time = 'UNIX_TIMESTAMP(data_time) AS time';
+		$time = 'UNIX_TIMESTAMP(time) AS timestamp';
 		require_once strtr(dirname(__FILE__),array('lib/service'=>'lib/PHPExcel')).'/PHPExcel.php';
 		$objPHPExcel = new PHPExcel();
 		$objPHPExcel->getProperties()->setCreator("eGiga2m")->setLastModifiedBy("eGiga2m")->setTitle("eGiga2m")->setSubject("eGiga2m")->setDescription("Document for Office 2007 XLSX, generated using PHPExcel classes.")->setKeywords("office 2007 openxml php eGiga2m")->setCategory("eGiga2m");
@@ -370,6 +412,9 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$ts_empty[$ts_num] = ' ';
 		}
 		$query_array = $old_data = $old_time = array();
+		$label_num = 0;
+		$tsLabel = array();
+		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', $_REQUEST['tsLabel']);}
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
 			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
 			// if (isset($_REQUEST['debug'])) die("memory_usage: ".memory_get_usage());
@@ -381,24 +426,26 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			if (isset($_REQUEST['debug'])) debug($query);
 			$table = sprintf("att_{$ts_id_num[0]}");
 			$col_name = !$row['writable']? "value AS val": "read_value AS val";	
-			$dataxls[] = $row['full_name'];
-			$orderby = "data_time, ts_index";
+			$full_name = isset($tsLabel[$label_num])? $tsLabel[$label_num]: $row['full_name'];
+			$label_num++;
+			$dataxls[] = $full_name;
 			if (isset($_REQUEST['zoh']) or isset($_REQUEST['foh'])) {
-				$query = "SELECT $time, UNIX_TIMESTAMP(data_time) AS t, $col_name FROM $table WHERE att_conf_id={$ts_id_num[0]} AND data_time <= '{$start[$xaxis-1]}' ORDER BY data_time DESC LIMIT 1";
+				$query = "SELECT $time, time, $col_name FROM $table WHERE att_conf_id={$ts_id_num[0]} AND time <= '{$start[$xaxis-1]}' ORDER BY time DESC LIMIT 1";
 				$res = mysqli_query($db, $query);
 				if (isset($_REQUEST['debug'])) debug($query, 'zoh_query');
 				$zrow = mysqli_fetch_array($res, MYSQLI_ASSOC);
 				$old_data[$ts_num] = sprintf($format, $zrow['val']-0);
-				$old_time[$ts_num] = $zrow['t']-0;
+				$old_time[$ts_num] = $zrow['timestamp']-0;
 				if (isset($_REQUEST['debug'])) {debug($zrow, 'row');debug($ts_num, 'ts_num');}
 			}
-			$query_array[$ts_num] = "SELECT $time, $col_name, $ts_num AS ts_index FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}";
+			$query_array[$ts_num] = "SELECT $time, time, $col_name, $ts_num AS ts_index FROM $table WHERE time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}";
 			$last_id = $ts_num;
 		}
 		$objPHPExcel->getActiveSheet()->fromArray($dataxls,NULL, 'B1');		
 		if (isset($_REQUEST['debug'])) echo "pre-execution time: ".(microtime(TRUE)-$t0)."<br>\n";
 		$max_id = $last_id;
 		for ($i=0; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];}
+		$orderby = "time, ts_index";
 		// UNION will remove duplicates. UNION ALL does not.
 		$query = implode(' UNION ', $query_array)." ORDER BY $orderby";
 		if (isset($_REQUEST['debug'])) {debug($query, 'big query'); $t0 = microtime(TRUE);}
@@ -406,39 +453,37 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		if (isset($_REQUEST['debug'])) {echo "execution time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "num_rows: ".mysqli_num_rows($res)."<br>\n"; $t0 = microtime(TRUE);}
 		$memory_threshold = $memory_limit*(isset($_REQUEST['buffered_output'])? 0.499: 0.999);
 		$y = 2;
+		if (isset($_REQUEST['decimation'])) {
+			emit_data_decimated($res, 'xls', $memory_threshold, $max_id, $objPHPExcel, '', $format);
+		}
+		if (isset($_REQUEST['foh'])) {
+			emit_data_foh($res, 'xls', $memory_threshold, $max_id, $objPHPExcel, '', $format, $old_data, $old_time);
+		}
 		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 			if (memory_get_usage() > $memory_threshold) die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
-			if ($old_time[$row['ts_index']]==$row['t']) {
+			if ($old_time[$row['ts_index']]==$row['timestamp']) {
 				if ($last_id==$row['ts_index']) continue; 
 				for ($i=$last_id+1; $i<$row['ts_index']; $i++) {$dataxls[$i]=$old_data[$i];} 
-				$dataxls[$row['ts_index']]=sprintf($format, $row['val']-0);
+				$dataxls[$row['ts_index']] = sprintf($format, $row['val']-0);
 			}
 			else {
 				if (isset($_REQUEST['debug'])) {debug($row, 'row');debug($old_time, 'old_time');debug($old_data, 'old_data');debug($dataxls, 'dataxls');}
 				for ($i=$last_id+1; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];} 
-				xls_date($objPHPExcel, $row['time'], 'A'.$y); 
-				$dataxls[$row['ts_index']]=sprintf($format, $row['val']-0); 
+				xls_date($objPHPExcel, $row['timestamp'], 'A'.$y); 
+				$dataxls[$row['ts_index']] = sprintf($format, $row['val']-0); 
 				$objPHPExcel->getActiveSheet()->fromArray($dataxls, NULL, 'B'.$y++);
 				for ($i=0; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];}
 				if (isset($_REQUEST['debug'])) {debug($old_data, 'old_data');debug($dataxls, 'dataxls');}
 				for ($i=0; $i<$row['ts_index']; $i++) {$dataxls[$i]=$old_data[$i];} 
 				if (isset($_REQUEST['zoh'])) $dataxls[$row['ts_index']]=sprintf($format, $row['val']-0);
 			}
-			$old_time[$row['ts_index']] = $row['t'];
+			$old_time[$row['ts_index']] = $row['timestamp'];
 			$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): NULL;
 			$last_id = $row['ts_index'];
 		}
 		for ($i=$last_id+1; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];} 
-		header('Content-Type: application/vnd.ms-excel');
-		header('Content-Disposition: attachment;filename="eGiga2m.xls"');
-		header('Cache-Control: max-age=0');
-		header('Cache-Control: max-age=1');
-		header ('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
-		header ('Last-Modified: '.gmdate('D, d M Y H:i:s').' GMT'); // always modified
-		header ('Cache-Control: cache, must-revalidate'); // HTTP/1.1
-		header ('Pragma: public'); // HTTP/1.0
-		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
-		$objWriter->save('php://output');
+		if (isset($_REQUEST['debug'])) exit;
+		emit_tail_xls($objPHPExcel);
 		exit;
 	}
 
@@ -446,7 +491,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	// emit data in text formats
 	function emit_data($data_type) {
 		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $querytime;
-		if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
+		if (isset($_REQUEST['debug'])) {$t0 = microtime(TRUE);}
 		$memory_limit = ini_get('memory_limit');
 		if (preg_match('/^(\d+)(.)$/', $memory_limit, $matches)) {
 			if ($matches[2] == 'M') {
@@ -463,7 +508,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		}
 		if ($data_type=='csv') {
 			$nl = "\n";
-			$separator = ",";
+			$separator = isset($_REQUEST['separator'])? $_REQUEST['separator']: ";";
 		}
 		if ($data_type=='mat') {
 			emit_matlab_data($ts);
@@ -483,8 +528,11 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$ts_empty[$ts_num] = ' ';
 		}
 		$query_array = array();
+		$label_num = 0;
+		$tsLabel = array();
+		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', $_REQUEST['tsLabel']);}
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
-			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
+			if (isset($_REQUEST['debug'])) {$nl = "<br>\n"; debug($ts_id_num, 'ts_id_num');}
 			$big_data_w = array();
 			$query = "SELECT * FROM adt WHERE ID={$ts_id_num[0]}";
 			$res = mysqli_query($db, $query);
@@ -500,9 +548,11 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 					$n = array_pop($name_array);
 				}
 				if (isset($_REQUEST['debug'])) debug($name);
-				emit_output($separator.strtr($name, array("/"=>"_", "."=>"_", " "=>"_", "["=>"_", "]"=>"_"))); 
+				$full_name = strtr($name, array("/"=>"_", "."=>"_", " "=>"_", "["=>"_", "]"=>"_")); 
 			}
-			else emit_output($separator.$row['full_name']);
+			else $full_name = $row['full_name'];
+			emit_output($separator.(isset($tsLabel[$label_num])? $tsLabel[$label_num]: $full_name));
+			$label_num++;
 			if (isset($_REQUEST['debug'])) debug($query);
 			$table = sprintf("att_{$ts_id_num[0]}");
 			$col_name = !$row['writable']? "value AS val": "read_value AS val";
@@ -636,10 +686,10 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		}
 		if ($_REQUEST['format']=='csv') {
 			$csv = true;
-			$separator = isset($_REQUEST['separator'])? $_REQUEST['separator']: ',';
+			$separator = isset($_REQUEST['separator'])? $_REQUEST['separator']: ';';
 			$string_continer = isset($_REQUEST['string_continer'])? $_REQUEST['string_continer']: '';
 		}
-		if ($_REQUEST['format']=='itx') {
+		if ($_REQUEST['format']=='igor') {
 			$igor = true;
 		}
 		$filename = isset($_REQUEST['filename'])? $_REQUEST['filename']: 'egiga2m.'.$_REQUEST['format'];
@@ -647,7 +697,6 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 
 
 	$start = explode(';', $_REQUEST['start']);
-	$start_timestamp[0] = strtotime($start[0]);
 	foreach ($start as $k=>$val) {
 		$start[$k] = parse_time($val);
 		$stop[$k] = ' AND time <= NOW() + INTERVAL 2 HOUR';
@@ -661,6 +710,8 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$stop_timestamp[$k] = strlen($val)? strtotime($time): time();
 		}
 	}
+	$start_timestamp[0] = strtotime($start[0]);
+	if (isset($_REQUEST['debug'])) {debug($start_timestamp, 'start_timestamp');}
 
 	if (isset($_REQUEST['sampling'])) {
 		$sampling_maxmin = strpos($_REQUEST['sampling'], 'maxmin')!==false;
@@ -686,7 +737,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	$ts_counter = 0;
 	$type = 'num';
 	$csv_header = $data = array();
-	if ($_REQUEST['format']=='igor') {
+	if ($_REQUEST['format']=='itx') {
 		emit_data('itx');
 	}
 	if ($_REQUEST['format']=='csv') {
@@ -694,6 +745,9 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	}
 	if ($_REQUEST['format']=='mat') {
 		emit_data('mat');
+	}
+	if ($_REQUEST['format']=='xlsx') {
+		emit_data_xls();
 	}
 	foreach ($ts as $xaxis=>$ts_array) {
 	  if ($_REQUEST['format']=='mat5') {
