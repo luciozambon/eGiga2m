@@ -9,7 +9,7 @@
 // add smart periods on update
 // add regression https://github.com/Tom-Alexander/regression-js
 
-	var version = '1.15.0';
+	var version = '1.15.1';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -25,10 +25,10 @@
 	var myPlotClass = new Array();
 	var myHistory = new Array();
 	var myHistoryCounter = -1;
-	var plotService = './plot_service.php?conf=';
-	var treeService = './tree_service.php?conf=';
+	var plotService = './lib/service/plot_service.php?conf=';
+	var treeService = './lib/service/tree_service.php?conf=';
 	var updateService = '';
-	var exportService = './export_service.php?conf=';
+	var exportService = './lib/service/export_service.php?conf=';
 	var hcExportService = 'http://export.highcharts.com';
 	var zoom_speed = document.getElementById('zoomFactor')? document.getElementById('zoomFactor').value : 10;
 	var globalVal;
@@ -60,6 +60,9 @@
 	if (typeof($_GET['conf']) !== 'undefined') {
 		document.getElementById('conf').value = $_GET['conf'];
 		initConf($_GET['conf']);
+	}
+	else {
+		initConf(false);
 	}
 	if (typeof(isHighChartsInstalled) !== 'boolean' && document.getElementById('show_flot')) {
 		document.getElementById('show_flot').checked = true;
@@ -905,10 +908,23 @@
 		return myString;
 	}
 
-	function exprEval(expr) {
-		exp.Reset();
-		exp.Expression(expr);
-		return exp.Evaluate();
+	function mathEval(exp) {
+		// var invalidExpression = "Invalid arithmetic expression"; 
+		var invalidExpression = NaN; 
+		var reg = /(?:[a-z$_][a-z0-9$_]*)|(?:[;={}\[\]"'!&<>^\\?:])/ig,
+		valid = true;
+		// Detect valid JS identifier names and replace them
+		exp = exp.replace(reg, function ($0) {
+			// If the name is a direct member of Math, allow
+			if (Math.hasOwnProperty($0))
+				return "Math."+$0;
+			// Otherwise the expression is invalid
+			else
+				valid = false;
+		});
+		// Don't eval if our replace function flagged as invalid
+		if (!valid) return invalidExpression;
+		try { var a = eval(exp);  return a} catch (e) { return invalidExpression; };
 	}
 
 	function evalFormulae(data){
@@ -956,17 +972,17 @@
 				f = strtr(curves[curveIndex].request, formulaReplace);
 				if (formulaDebug) alert('x: '+formulaSamples[j].x+', f: '+f);
 				if (f.indexOf('$')>=0) continue;
-				y = exprEval(f);
-				// y = eval(f);
+				y = mathEval(f);
 				if (typeof(y) === 'undefined' || isNaN(y)) continue;
 				if (formulaDebug) alert('eval(f): '+y+', type: '+typeof(y));
-				formulaData.push([formulaSamples[j].x,eval(f)]);
+				formulaData.push([formulaSamples[j].x,y]);
 			}
 			curves[curveIndex].response = newData.push({'label': strtr(curves[curveIndex].request, labelReplace),'xaxis':curves[curveIndex].x,'yaxis':curves[curveIndex].y,'data': formulaData});
 			if (formulaDebug) print_r(newData);
 		}
 		return newData;
 	}
+
 	function plotTs(tsRequest, start, stop){
 		curves = new Array();
 		myRequest = tsRequest;
