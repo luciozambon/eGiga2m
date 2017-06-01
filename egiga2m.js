@@ -852,10 +852,10 @@
 		// alert(JSON.stringify(myHistory, null, '\t'));
 	}
 
-	function olddecodeTs(tsRequest){
+	function decodeTs(tsRequest){
 		return tsRequest;
 	}
-	function decodeTs(tsRequest){
+	function newdecodeTs(tsRequest){
 		var ts = tsRequest.split(';');
 		var uniqueTs = new Array();
 		var fullTs = new Array();
