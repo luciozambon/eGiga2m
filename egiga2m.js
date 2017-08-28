@@ -9,7 +9,7 @@
 // add smart periods on update
 // add regression https://github.com/Tom-Alexander/regression-js
 
-	var version = '1.15.1';
+	var version = '1.15.2';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -852,10 +852,10 @@
 		// alert(JSON.stringify(myHistory, null, '\t'));
 	}
 
-	function decodeTs(tsRequest){
+	function olddecodeTs(tsRequest){
 		return tsRequest;
 	}
-	function newdecodeTs(tsRequest){
+	function decodeTs(tsRequest){
 		var ts = tsRequest.split(';');
 		var uniqueTs = new Array();
 		var fullTs = new Array();
@@ -908,27 +908,14 @@
 		return myString;
 	}
 
-	function mathEval(exp) {
-		// var invalidExpression = "Invalid arithmetic expression"; 
-		var invalidExpression = NaN; 
-		var reg = /(?:[a-z$_][a-z0-9$_]*)|(?:[;={}\[\]"'!&<>^\\?:])/ig,
-		valid = true;
-		// Detect valid JS identifier names and replace them
-		exp = exp.replace(reg, function ($0) {
-			// If the name is a direct member of Math, allow
-			if (Math.hasOwnProperty($0))
-				return "Math."+$0;
-			// Otherwise the expression is invalid
-			else
-				valid = false;
-		});
-		// Don't eval if our replace function flagged as invalid
-		if (!valid) return invalidExpression;
-		try { var a = eval(exp);  return a} catch (e) { return invalidExpression; };
+	function exprEval(expr) {
+		exp.Reset();
+		exp.Expression(expr);
+		return exp.Evaluate();
 	}
 
 	function evalFormulae(data){
-		// return data; // skip evalFormulae(data) unless read/write data is preserved
+		return data; // skip evalFormulae(data) unless read/write data is preserved
 		var formulaDebug = true;
 		var formulaSamples = new Array();
 		var newData = new Array();
@@ -972,17 +959,17 @@
 				f = strtr(curves[curveIndex].request, formulaReplace);
 				if (formulaDebug) alert('x: '+formulaSamples[j].x+', f: '+f);
 				if (f.indexOf('$')>=0) continue;
-				y = mathEval(f);
+				y = exprEval(f);
+				// y = eval(f);
 				if (typeof(y) === 'undefined' || isNaN(y)) continue;
 				if (formulaDebug) alert('eval(f): '+y+', type: '+typeof(y));
-				formulaData.push([formulaSamples[j].x,y]);
+				formulaData.push([formulaSamples[j].x,eval(f)]);
 			}
 			curves[curveIndex].response = newData.push({'label': strtr(curves[curveIndex].request, labelReplace),'xaxis':curves[curveIndex].x,'yaxis':curves[curveIndex].y,'data': formulaData});
 			if (formulaDebug) print_r(newData);
 		}
 		return newData;
 	}
-
 	function plotTs(tsRequest, start, stop){
 		curves = new Array();
 		myRequest = tsRequest;
