@@ -333,8 +333,14 @@
 					<tr><td>&nbsp;&nbsp;<label>Max</label></td><td><input type="text" class="span3" name='maxY1' id='maxY1set'></td><td>&nbsp;&nbsp;&nbsp;&nbsp;</td><td><input type="text" class="span3" name='maxY2' id='maxY2set'></td></tr>
 					<tr><td colspan='5'>&nbsp;</td></tr>
 					<tr><td>&nbsp;&nbsp;<label>Logarithmic</label>&nbsp;&nbsp;</td><td><input type="checkbox" name='logY1' id='logY1set'></td><td>&nbsp;&nbsp;&nbsp;&nbsp;</td><td><input type="checkbox" name='logY2' id='logY2set'></td></tr>
-				</table><br><br>
+				</table><br>
 				<label> Show time series data in a table <input type="checkbox" id='show_table'></label> <br><br>
+				<label> Decimation <select id='decimation'>
+					<option id='decimation_none' value='none'>none</option>
+					<option id='decimation_maxmin' value='maxmin'>maxmin</option>
+					<option id='decimation_downsample' value='downsample'>downsample</option>
+					</select>&nbsp;
+				</label> number of samples <input type="text" class="span3" name='decimationSamples' id='decimationSamples'><br><br>
 				<div id='style_output'>
 					&nbsp;&nbsp;<label>Select output</label> &nbsp;&nbsp;&nbsp;
 					<div class="checkbox">
