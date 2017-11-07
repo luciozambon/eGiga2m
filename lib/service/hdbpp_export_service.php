@@ -132,7 +132,7 @@
 				$full_name = strtr(isset($tsLabel[$label_num])? $tsLabel[$label_num]: $row['att_name'], $skipdomain);
 				$label_num++;
 				$orderby = $dim=='array'? "data_time,idx": "data_time";
-				$tm = "UNIX_TIMESTAMP(data_time) / 86400 + 719519 AS time"; // UNIX_TIMESTAMP(time) / 86400 + datenum('01/01/1970');";
+				$tm = "UNIX_TIMESTAMP(data_time) / 86400 + 719529 AS time"; // UNIX_TIMESTAMP(time) / 86400 + MATLAB:datenum('01/01/1970');";
 				$query = "SELECT $tm FROM $table WHERE att_conf_id={$ts_id_num[0]} AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
 				if (isset($_REQUEST['debug'])) debug($query);
 				$res = mysqli_query($db, $query);
@@ -162,6 +162,7 @@
 	function emit_output($str) {
 		global $output_buffer;
 		if (isset($_REQUEST['buffered_output'])) $output_buffer .= $str; else echo $str;
+		if (isset($_REQUEST['debug'])) {echo "\nemit_output($str)\n";}
 	}
 
 	// ----------------------------------------------------------------
@@ -197,7 +198,9 @@
 		}
 		else {
 			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
-			foreach ($v as $val) {emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));}
+			foreach ($v as $val) {
+				emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));
+			}
 		}
 	}
 
@@ -394,7 +397,7 @@
 			}
 		}
 		if (isset($_REQUEST['debug'])) debug($memory_limit);
-		$format = '%6.2e';
+		$format = '%8.5e';
 		$time = 'UNIX_TIMESTAMP(data_time) AS time';
 		require_once strtr(dirname(__FILE__),array('lib/service'=>'lib/PHPExcel')).'/PHPExcel.php';
 		$objPHPExcel = new PHPExcel();
@@ -479,7 +482,7 @@
 	}
 
 	// ----------------------------------------------------------------
-	// emit igor statistics
+	// emit igor,csv,matlab statistics
 	function emit_data($data_type) {
 		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $skipdomain, $data_type_result;
 		if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
@@ -492,7 +495,7 @@
 			}
 		}
 		if (isset($_REQUEST['debug'])) debug($memory_limit);
-		$format = '%6.2e';
+		$format = '%8.5e';
 		$time = 'UNIX_TIMESTAMP(data_time) AS timestamp, data_time AS time, data_time';
 		if ($data_type=='itx') {
 			$nl = "\r\n";
@@ -591,13 +594,14 @@
 			if ($old_time[$row['ts_index']]==$row['timestamp']) {
 				if ($last_id==$row['ts_index']) continue; 
 				for ($i=$last_id+1; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
-				if ($last_id<$max_id) emit_output($separator.sprintf($format, $row['val']-0));
+				if ($last_id<$max_id) emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $row['val']));
 			}
 			else {
 				for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
 				emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: $row['time']));
 				for ($i=0; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
-				emit_output($separator.sprintf($format, $row['val']-0));
+				// if (isset($_REQUEST['debug'])) {debug($row, 'row'); debug(is_null($row['val'])); debug(is_numeric($row['val']));}
+				emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $row['val']));
 			}
 			$old_time[$row['ts_index']] = $row['timestamp'];
 			$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): ($data_type=='itx'? "NAN": NULL);
@@ -764,7 +768,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			$time = $val = array();
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				$time[] = $row['time'];
-				$val[] = $row['val']-0;
+				$val[] = is_null($row['val'])? $row['val']: $row['val']-0;
 			}
 			$big_data[strtr($full_name,array('/'=>'_','-'=>'_'))] = array($time, $val);
 			$ts_counter++;
@@ -834,7 +838,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 				// if (!isset($data[$row['time']])) $data[$row['time']] = array_merge($ts_array, array_fill(0,count($ts_array), ''));
 				if (!isset($data[$row['time']])) $data[$row['time']] = $ts_empty;
 				// debug($data[$row['time']]);debug($ts_id_num);
-				$data[$row['time']][$ts_map[$ts_id_num[0]]] = $row['val']-0;
+				$data[$row['time']][$ts_map[$ts_id_num[0]]] = is_null($row['val'])? $row['val']: $row['val']-0;
 			}
 			$ts_counter++;
 		}
