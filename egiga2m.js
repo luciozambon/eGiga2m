@@ -9,7 +9,7 @@
 // add smart periods on update
 // add regression https://github.com/Tom-Alexander/regression-js
 
-	var version = '1.15.2';
+	var version = '1.15.3';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -39,6 +39,8 @@
 	var animationDelay;
 	var frameNum;
 	var updatePlot = 0;
+	var decimation = 'maxmin';
+	var decimationSamples = 1000;
 	var updateBackground = 300;
 	var updateRequest = '';
 	var updateDecimation = 0;
@@ -64,6 +66,16 @@
 	else {
 		initConf(false);
 	}
+	if (typeof($_GET['decimation']) !== 'undefined') {
+		decimation = $_GET['decimation'];
+	}
+	if (document.getElementById('decimation_'+decimation)) document.getElementById('decimation_'+decimation).selected = true;
+	if (typeof($_GET['decimation_samples']) !== 'undefined') {
+		decimationSamples = $_GET['decimation_samples'];
+	}
+	if (document.getElementById('decimationSamples')) document.getElementById('decimationSamples').value = decimationSamples;
+	console.log('plotService: '+plotService);
+
 	if (typeof(isHighChartsInstalled) !== 'boolean' && document.getElementById('show_flot')) {
 		document.getElementById('show_flot').checked = true;
 		document.getElementById('show_hc').checked = false;
@@ -82,8 +94,11 @@
 
 	// update "see also" menu 
 	function update_see_also() {
-		var replace = {'<!--start-->': document.getElementById('startInput').value,
-			'<!--stop-->': document.getElementById('stopInput').value};
+		var replace = {
+			'<!--start-->': document.getElementById('startInput').value,
+			'<!--stop-->': document.getElementById('stopInput').value,
+			'<!--decimation-->': decimation
+		};
 		document.getElementById('see_also').innerHTML = strtr(see_also, replace);
 	}
 
@@ -220,6 +235,7 @@
 		if (style.length) style = '&style='+style;
 		var height = document.getElementById('height').value;
 		if (height.length) height = '&height='+height;
+		var decimationLink = '&decimation='+decimation+'&decimation_samples='+decimationSamples;
 		var hc = ''; // document.getElementById('show_hc').checked? '&show_hc=true': '';
 		var flot = document.getElementById('show_flot').checked? '&show_flot=true': '';
 		var table = document.getElementById('show_table').checked? '&show_table=true': '';
@@ -237,7 +253,7 @@
 		}
 		exportURL = exportService+start+stop+ts;
 		var necessaryParam = conf+start+stop+ts;
-		var optionalParam = yconf+style+height;
+		var optionalParam = yconf+style+height+decimationLink;
 		if (typeof(myTs) !== 'undefined') {
 			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+table;
 			window.location = myURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+table;
@@ -302,6 +318,9 @@
 		// stop Animation (if running)
 		animationDelay = 0;
 		document.getElementById('placeholder').style.border = "0px";
+		decimationSamples = document.getElementById('decimationSamples')? document.getElementById('decimationSamples').value: 'maxmin';
+		decimation = document.getElementById('decimation')? document.getElementById('decimation').value: 1000;
+		// console.log('decimation: '+decimation);
 		myPlotClass = []; // todo: re-use myPlotClass as cache, request data before calling plot function
 		if (document.getElementById('startInput').value.length) {
 			document.getElementById('start').value = document.getElementById('startInput').value;
@@ -410,7 +429,7 @@
 	}
 
 	function initTree($_GET) {
-		//alert(typeof(document.getElementById('tree')));
+		// console.log(typeof(document.getElementById('tree')));
 		if (!$('#tree').length) return;
 		var source_url = treeService;
 		if (typeof(formula_edit) === 'undefined') $(tree).width(250).height($(window).height()-320);
@@ -852,10 +871,15 @@
 		// alert(JSON.stringify(myHistory, null, '\t'));
 	}
 
-	function olddecodeTs(tsRequest){
+	function decodeTs(tsRequest){
+		const ts = tsRequest.split(';');
+		for (var i=0; i<ts.length; i++) {
+			const s = ts[i].split(',');
+			curves[i] = {'request':s[0],'x':s[1],'y':s[2],'response': s[0]};
+		}
 		return tsRequest;
 	}
-	function decodeTs(tsRequest){
+	function newdecodeTs(tsRequest){
 		var ts = tsRequest.split(';');
 		var uniqueTs = new Array();
 		var fullTs = new Array();
@@ -908,13 +932,27 @@
 		return myString;
 	}
 
-	function exprEval(expr) {
-		exp.Reset();
-		exp.Expression(expr);
-		return exp.Evaluate();
+	function mathEval(exp) {
+		// var invalidExpression = "Invalid arithmetic expression"; 
+		var invalidExpression = NaN; 
+		var reg = /(?:[a-z$_][a-z0-9$_]*)|(?:[;={}\[\]"'!&<>^\\?:])/ig,
+		valid = true;
+		// Detect valid JS identifier names and replace them
+		exp = exp.replace(reg, function ($0) {
+			// If the name is a direct member of Math, allow
+			if (Math.hasOwnProperty($0))
+				return "Math."+$0;
+			// Otherwise the expression is invalid
+			else
+				valid = false;
+		});
+		// Don't eval if our replace function flagged as invalid
+		if (!valid) return invalidExpression;
+		try { var a = eval(exp);  return a} catch (e) { return invalidExpression; };
 	}
 
 	function evalFormulae(data){
+		// 
 		return data; // skip evalFormulae(data) unless read/write data is preserved
 		var formulaDebug = true;
 		var formulaSamples = new Array();
@@ -959,22 +997,23 @@
 				f = strtr(curves[curveIndex].request, formulaReplace);
 				if (formulaDebug) alert('x: '+formulaSamples[j].x+', f: '+f);
 				if (f.indexOf('$')>=0) continue;
-				y = exprEval(f);
-				// y = eval(f);
+				y = mathEval(f);
 				if (typeof(y) === 'undefined' || isNaN(y)) continue;
 				if (formulaDebug) alert('eval(f): '+y+', type: '+typeof(y));
-				formulaData.push([formulaSamples[j].x,eval(f)]);
+				formulaData.push([formulaSamples[j].x,y]);
 			}
 			curves[curveIndex].response = newData.push({'label': strtr(curves[curveIndex].request, labelReplace),'xaxis':curves[curveIndex].x,'yaxis':curves[curveIndex].y,'data': formulaData});
 			if (formulaDebug) print_r(newData);
 		}
 		return newData;
 	}
+
 	function plotTs(tsRequest, start, stop){
 		curves = new Array();
 		myRequest = tsRequest;
 		var event = '';
 		for (j=0; j<events.length; j++) event += document.getElementById('show_'+events[j]).checked? '&show_'+events[j]+'='+document.getElementById('filter_'+events[j]).value: '';
+		event = `${event}&decimation=${decimation}&decimation_samples=${decimationSamples}`;
 		// adjust plot dimensions
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		$("#mybackground").width($(window).width()-(($('#tree').length > 0)? 280: 0)).height(((height-0)+10)+'px');
@@ -992,7 +1031,7 @@
 		else if (stop.length) stop_param = '&stop=' + stop;
 		var prestart = document.getElementById('show_hc').checked? '&prestart=hc': '';
 		var ts = decodeTs(tsRequest);
-		// alert(plotService+'&'+start_param+stop_param+'&ts='+tsRequest+prestart+event);
+		console.log(plotService+'&'+start_param+stop_param+'&ts='+tsRequest+prestart+event);
 		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
 			plotData(evalFormulae(data.ts), data.event, start, stop);
 		})
@@ -1001,7 +1040,7 @@
 	function plotData(dataTs, dataEvent, start, stop){
 		var startArray = start.split(';');
 		var stopArray = stop.split(';');
-		// alert(JSON.stringify(dataTs, null, '\t'));
+		// console.log(JSON.stringify(dataTs, null, '\t'));
 		if (document.getElementById('show_hc').checked) {
 			hcPlot(dataTs, dataEvent, startArray, stopArray);
 			document.getElementById('pngCallback').style.display = 'none';
@@ -1142,7 +1181,7 @@
 // ------------
 	var printing = false;
 	function hcPlot(data, eventData, startArray, stopArray){
-		// print_r(data); return;
+		console.log('data: ',data);
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		var style = 'step';
@@ -1160,7 +1199,7 @@
 		}
 		k=0;
 		for (j=0; j<events.length; j++) document.getElementById('event_'+events[j]).style.display = 'none';
-		// print_r(curves);
+		console.log('curves: ',curves);
 		for (var j in curves) {
 			if (j=='clone') continue;
 			if (data) while (data[k] && data[k]['ts_id']==curves[j]['request']) {
@@ -1177,6 +1216,7 @@
 			}
 			else emptyMessage = "No variable selected"
 		}
+		console.log('myPlotClass: ',myPlotClass);
 		for (var j in eventData) {
 			if (j=='clone') continue;
 			if (typeof(fade_level[j]) === 'undefined') continue;
@@ -1451,6 +1491,7 @@
 		$("#animationSlider").width($("#plotContainer").width()-20);
 		globalVal = new Array();
 		var start_param = 'start=' + start;
+		start_param = `${start_param}&decimation=${decimation}&decimation_samples=${decimationSamples}`;
 		var stop_param = '';
 		if (stop.length) stop_param = '&stop=' + stop;
 		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts_id+'&no_pretimer&no_posttimer', function(jsonval) {
@@ -1531,6 +1572,7 @@
 		$("#animationSlider").width($("#plotContainer").width()-20);
 		globalVal = new Array();
 		var start_param = 'start=' + start;
+		start_param = `${start_param}&decimation=${decimation}&decimation_samples=${decimationSamples}`;
 		var stop_param = '';
 		if (stop.length) stop_param = '&stop=' + stop;
 		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts_id+'&no_pretimer&no_posttimer', function(jsonval) {
