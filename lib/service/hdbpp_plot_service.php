@@ -10,6 +10,7 @@
 	// if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', json_encode($_REQUEST));
 
 	$state = array('ON','OFF','CLOSE','OPEN','INSERT','EXTRACT','MOVING','STANDBY','FAULT','INIT','RUNNING','ALARM','DISABLE','UNKNOWN');
+	$bool = array('FALSE','TRUE');
 
 	$pretimer = !isset($_REQUEST['no_pretimer']);
 	$posttimer = !isset($_REQUEST['no_posttimer']);
@@ -124,12 +125,13 @@
 	$ts_counter = 0;
 	$querytime = $fetchtime = 0.0;
 	$samples = 0;
-	$decimation = isset($_REQUEST['decimation'])? $_REQUEST['decimation']: 'maxmin';
+	$decimationSamples = isset($_REQUEST['decimation_samples'])? $_REQUEST['decimation_samples']-0: 1000;
+	$decimation = isset($_REQUEST['decimation'])? $_REQUEST['decimation']: 'maxmin'; // maxmin, downsample, none
 	foreach ($ts as $xaxis=>$ts_array) {
 		if (empty($ts_array)) continue;
 		$start_timestamp = strtotime($start[$xaxis-1]);
 		$interval = $stop_timestamp[$xaxis-1] - $start_timestamp;
-		$slot_maxmin = $interval*2/1000;
+		$slot_maxmin = $decimationSamples>0? $interval*2/$decimationSamples: 0;
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
 			if (isset($_REQUEST['debug'])) debug($ts_num, 'ts_num');
 			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
@@ -137,7 +139,9 @@
 			list($att_conf_id,$element_index,$trash) = explode('[',trim($ts_id_num[0], ']').'[[',3);
 			if (isset($_REQUEST['debug'])) debug($att_conf_id, 'att_conf_id');
 			if (isset($_REQUEST['debug'])) debug($element_index, 'element_index');
-			$res = mysqli_query($db, "SELECT * FROM att_conf,att_conf_data_type WHERE att_conf_id=$att_conf_id AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id");
+			$query = "SELECT * FROM att_conf,att_conf_data_type WHERE att_conf_id=$att_conf_id AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id";
+			$res = mysqli_query($db, $query);
+			if (isset($_REQUEST['debug'])) debug($query, 'query');
 			$conf_row = mysqli_fetch_array($res, MYSQLI_ASSOC);
 			list($dim, $type, $io) = explode('_', $conf_row['data_type']);
 			$table = sprintf("att_{$dim}_{$type}_{$io}");
@@ -147,6 +151,7 @@
 			if (($io=="rw") and ($element_index=='1')) $io = "wo";
 			$col_name = $dim=='array'? "value_r AS val,idx": $data_type_result[$io];
 			if ($type=='devstate') $big_data[$ts_counter]['categories'] = $state;
+			if ($type=='devboolean') $big_data[$ts_counter]['categories'] = $bool;
 			$big_data[$ts_counter]['ts_id'] = $att_conf_id;
 			$big_data[$ts_counter]['label'] = strtr($conf_row['att_name'], $skipdomain);
 			$big_data[$ts_counter]['xaxis'] = $xaxis;
@@ -168,9 +173,13 @@
 			$fetchtime -= microtime(true);
 			$samples += mysqli_num_rows($res);
 			$sample = -1;
+			$oversampled = false;
 			// limit to less than 1000 samples http://api.highcharts.com/highcharts#plotOptions.series.turboThreshold
-			$sampling_every = ceil(mysqli_num_rows($res)/1000);
-			$oversampled = $sampling_every>1;
+			if (($decimationSamples > 0) && ($decimation!=='none')) {
+				$sampling_every = ceil(mysqli_num_rows($res)/$decimationSamples);
+				if (isset($_REQUEST['debug'])) debug($sampling_every, "sampling_every");
+				$oversampled = $sampling_every>1;
+			}
 			$max = $min = array();
 			// if (($dim=='array') && ($big_data[$ts_counter]['yaxis']=='multi')) {
 			if ($dim=='array') {
@@ -328,7 +337,7 @@
 		$show[$e] = (!SKIP_EVENT) || (isset($_REQUEST["show_$e"]));
 	}
 	if (isset($_REQUEST['debug'])) debug($show, 'show');
-	if (count($show)) {
+	if (count($show) and (!empty($big_data[0]['data']))) {
 		foreach ($big_data[0]['data'] as $d) {
 			if ($d[1] !== NULL) {
 				$y = $d[1];
