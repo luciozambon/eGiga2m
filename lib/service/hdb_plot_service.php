@@ -7,6 +7,7 @@
 	if (isset($_REQUEST['debug'])) echo json_encode($_REQUEST);
 
 	$state = array('ON','OFF','CLOSE','OPEN','INSERT','EXTRACT','MOVING','STANDBY','FAULT','INIT','RUNNING','ALARM','DISABLE','UNKNOWN');
+	$bool = array('FALSE','TRUE');
 
 	$pretimer = !isset($_REQUEST['no_pretimer']);
 	$posttimer = !isset($_REQUEST['no_posttimer']);
@@ -53,7 +54,7 @@
 	if (isset($_REQUEST['query'])) {
 		echo "query<br>\n"; debug($_REQUEST['query']);
 		$res = mysqli_query($db, $_REQUEST['query']);
-		echo "err: $mysqli_error<br>\n";
+		echo "err: ".mysqli_error($db)."<br>\n";
 		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 			debug($row);
 		}
@@ -151,12 +152,13 @@
 	$type = 'num';
 	$querytime = $fetchtime = 0.0;
 	$samples = 0;
-	$decimation = isset($_REQUEST['decimation'])? $_REQUEST['decimation']: 'maxmin';
+	$decimationSamples = isset($_REQUEST['decimation_samples'])? $_REQUEST['decimation_samples']-0: 1000;
+	$decimation = isset($_REQUEST['decimation'])? $_REQUEST['decimation']: 'maxmin'; // maxmin, downsample, none
 	foreach ($ts as $xaxis=>$ts_array) {
 		if (empty($ts_array)) continue;
 		$start_timestamp = strtotime($start[$xaxis-1]);
 		$interval = $stop_timestamp[$xaxis-1] - $start_timestamp;
-		$slot_maxmin = $interval*2/1000;
+		$slot_maxmin = $decimationSamples>0? $interval*2/$decimationSamples: 0;
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
 			$big_data_w = array();
 			$res = mysqli_query($db, "SELECT * FROM adt WHERE ID={$ts_id_num[0]}");
@@ -169,7 +171,9 @@
 			$big_data[$ts_counter]['xaxis'] = $xaxis;
 			$big_data[$ts_counter]['yaxis'] = $ts_id_num[1];
 			if ($xls) $myxls->Data[0][$ts_counter+1] = $row['full_name'];
+			// derived from enum CmdArgType
 			if ($row['data_type']==19) $big_data[$ts_counter]['categories'] = $state;
+			if ($row['data_type']==1) $big_data[$ts_counter]['categories'] = $bool;
 			if ($io=="rw") {
 				$big_data[$ts_counter+1]['ts_id'] = $ts_id_num[0];
 				$big_data[$ts_counter+1]['label'] = strtr($row['full_name'], $skipdomain).'_w';
@@ -192,9 +196,12 @@
 			$samples += mysqli_num_rows($res);
 			if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', $query);
 			$sample = -1;
+			$oversampled = false;
 			// limit to less than 1000 samples http://api.highcharts.com/highcharts#plotOptions.series.turboThreshold
-			$sampling_every = ceil(mysqli_num_rows($res)/1000);
-			$oversampled = $sampling_every>1;
+			if (($decimationSamples > 0) && ($decimation!=='none')) {
+				$sampling_every = ceil(mysqli_num_rows($res)/$decimationSamples);
+				$oversampled = $sampling_every>1;
+			}
 			$max = $min = array();
 			if (($dim==1) && ($big_data[$ts_counter]['yaxis']=='multi')) {
 				$pretimer = false;
@@ -213,6 +220,7 @@
 					'prestart'=>$row['time']*1000); 
 				}
 			}
+			$big_data[$ts_counter+$k]['num_rows'] = mysqli_num_rows($res);
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				if (isset($_REQUEST['debug'])) {print_r($row);} 
 				if ($row['time']==0) continue;
@@ -322,6 +330,7 @@
 
 	if ($xls) {$myxls->SendFile();exit();}
 
+	// if (isset($_REQUEST['categorized'])) 
 	$big_data = array('ts'=>$big_data);
 
 	// debug($query); exit(0);
