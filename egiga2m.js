@@ -9,7 +9,7 @@
 // add smart periods on update
 // add regression https://github.com/Tom-Alexander/regression-js
 
-	var version = '1.15.3';
+	var version = '1.15.5';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -18,6 +18,7 @@
 	var myStart;
 	var myStop;
 	var exportURL = 'undefined';
+	var plotURL = 'undefined';
 	var exportFormat = 'csv';
 	var exportBlanks = '';
 	var exportDecimation = '';
@@ -244,34 +245,39 @@
 		// path[path.length-1] = pathname.match(/[^\/]+$/)[0];
 		var event = '';
 		for (j=0; j<events.length; j++) event += document.getElementById('show_'+events[j]).checked? '&show_'+events[j]+'='+document.getElementById('filter_'+events[j]).value: '';
-		var myURL = window.location.protocol + "//" + window.location.host + path.join('/');
+		exportURL = window.location.protocol + "//" + window.location.host + path.join('/');
 		path[path.length-1] = (pathname.indexOf('.html')==-1)? path[path.length-1]+'index_plot.html': path[path.length-1].replace('.html', '_plot.html');
-		var myURL2 = window.location.protocol + "//" + window.location.host + path.join('/');
 		path.pop();
+		plotURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.replace('./', '/')+start+stop+ts+decimationLink;
 		if (exportService.indexOf("./") == 0) {
 			exportService = window.location.protocol + "//" + window.location.host + path.join('/') + exportService.substr(1);
 		}
 		exportURL = exportService+start+stop+ts;
 		var necessaryParam = conf+start+stop+ts;
 		var optionalParam = yconf+style+height+decimationLink;
+		var jsonURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.substr(1)+necessaryParam.replace('conf=', '')+optionalParam;
+		// console.log('jsonURL', jsonURL);
+		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+necessaryParam.replace('conf=', '')+optionalParam;
+		// console.log('jsonTreeURL', jsonTreeURL);
 		if (typeof(myTs) !== 'undefined') {
 			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+table;
-			window.location = myURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+table;
+			window.location = exportURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+table;
 		}
 		else {
-			document.getElementById("plotOnly").setAttribute("onClick","javascript: location='"+myURL2+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
-			document.getElementById("plotOnly").innerHTML = myURL2+'?'+necessaryParam+optionalParam+hc+flot+table+event;
-			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+myURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
-			document.getElementById("plotAndControls").innerHTML = myURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
+			document.getElementById("plotOnly").setAttribute("onClick","javascript: location='"+plotURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
+			document.getElementById("plotOnly").innerHTML = plotURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
+			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+exportURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
+			document.getElementById("plotAndControls").innerHTML = exportURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
 			if (document.getElementById("scratch")) {
-				document.getElementById("scratch").setAttribute("onClick","javascript: location='"+myURL+'?'+conf+"'");
-				document.getElementById("scratch").innerHTML = myURL+'?'+conf;
+				document.getElementById("scratch").setAttribute("onClick","javascript: location='"+exportURL+'?'+conf+"'");
+				document.getElementById("scratch").innerHTML = exportURL+'?'+conf;
 			}
 			exportBlanks = document.getElementById('exportZoh').checked? '&zoh': (document.getElementById('exportFoh').checked? '&foh': '');
 			exportFormat = document.getElementById("exportCsv").checked? 'csv': '';
 			exportFormat = document.getElementById("exportXls").checked? 'xlsx': exportFormat;
 			exportFormat = document.getElementById("exportMat").checked? 'mat': exportFormat;
 			exportFormat = document.getElementById("exportIgor").checked? 'itx': exportFormat;
+			exportFormat = document.getElementById("exportJson") && document.getElementById("exportJson").checked? 'json': exportFormat;
 			exportDecimation = evalExportDecimation();
 			refreshExportLink();
 			document.getElementById("exportCsv").setAttribute("onClick","javascript: exportFormat = 'csv';document.getElementById('matDisabled').style.display='inline'; refreshExportLink();");
@@ -282,6 +288,14 @@
 			if (document.getElementById("exportIgor")) {
 				document.getElementById("exportIgor").setAttribute("onClick","javascript: exportFormat = 'itx';document.getElementById('matDisabled').style.display='inline'; refreshExportLink();");
 			}
+			if (document.getElementById("exportJson")) {
+				document.getElementById("exportJson").setAttribute("onClick","javascript: exportFormat = 'json';document.getElementById('matDisabled').style.display='inline'; refreshExportLink();");
+				document.getElementById("exportJson").innerHTML = jsonURL;
+			}
+			if (document.getElementById("exportTreeJson")) {
+				document.getElementById("exportTreeJson").setAttribute("onClick","javascript: location='"+jsonTreeURL+"'");
+				document.getElementById("exportTreeJson").innerHTML = jsonTreeURL;
+			}
 			document.getElementById('exportBlanks').setAttribute("onClick","javascript: exportBlanks = '';refreshExportLink();");
 			document.getElementById('exportZoh').setAttribute("onClick","javascript: exportBlanks = '&zoh';refreshExportLink();");
 			document.getElementById('exportFoh').setAttribute("onClick","javascript: exportBlanks = '&foh';refreshExportLink();");
@@ -290,7 +304,7 @@
 			document.getElementById('exportMean').setAttribute("onClick","javascript: exportDecimation = evalExportDecimation();refreshExportLink();");
 			document.getElementById('exportAvg').setAttribute("onClick","javascript: exportDecimation = evalExportDecimation();refreshExportLink();");
 			document.getElementById('tsLabel').setAttribute("onChange","javascript: refreshExportLink();");
-			document.getElementById("multiParam").value = myURL2+'?'+necessaryParam+optionalParam+hc+flot+event;
+			document.getElementById("multiParam").value = plotURL+'?'+necessaryParam+optionalParam+hc+flot+event;
 		}
 	}
 
@@ -308,9 +322,14 @@
 
 	function refreshExportLink(){
 		var exportTsLabel = document.getElementById('tsLabel').value.length? '&tsLabel='+document.getElementById('tsLabel').value: '';
-		console.log('refreshExportLink() '+exportTsLabel);
-		document.getElementById('exportLink').innerHTML = exportURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
-		document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+exportURL+"&format="+exportFormat+exportBlanks+exportDecimation+exportTsLabel+"'");
+		if (exportFormat==='json'){
+			document.getElementById('exportLink').innerHTML = plotURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
+			document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+plotURL+"&format="+exportFormat+exportBlanks+exportDecimation+exportTsLabel+"'");
+		}
+		else {
+			document.getElementById('exportLink').innerHTML = exportURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
+			document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+exportURL+"&format="+exportFormat+exportBlanks+exportDecimation+exportTsLabel+"'");
+		}
 	}
 
 	function plotCallback(){
@@ -1204,7 +1223,9 @@
 			if (j=='clone') continue;
 			if (data) while (data[k] && data[k]['ts_id']==curves[j]['request']) {
 				myPlotClass[k] = new Array();
-				myPlotClass[k].name = (typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[k]['label'].replace(/&deg;/g, "°");
+				const samplesPerSecond = data[k]['query_time']>0? ', Samples per second: '+(data[k]['num_rows']/data[k]['query_time']).toFixed(0): '';
+				const title = 'Samples: '+data[k]['data'].length+(data[k]['num_rows']>data[k]['data'].length? '/'+data[k]['num_rows']: '')+', query time: '+data[k]['query_time'].toFixed(2)+' [s]'+samplesPerSecond;
+				myPlotClass[k].name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
 				if (typeof($_GET['num_rows']) !== 'undefined') myPlotClass[k].name = myPlotClass[k].name+' num_rows: '+data[k]['num_rows'];
 				myPlotClass[k].xAxis = data[k]['xaxis']-1;
 				myPlotClass[k].yAxis = $.isNumeric(curves[j].y)? curves[j].y-1: 0;
@@ -1268,6 +1289,9 @@
 			},
 			exporting: {
 				url: hcExportService
+			},
+			legend: {
+			  useHTML: true
 			},
 			chart: {
 				events: {
