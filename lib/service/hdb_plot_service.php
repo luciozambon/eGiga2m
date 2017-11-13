@@ -150,7 +150,7 @@
 	$big_data = array();
 	$ts_counter = 0;
 	$type = 'num';
-	$querytime = $fetchtime = 0.0;
+	$querytime = $oldquerytime = $fetchtime = 0.0;
 	$samples = 0;
 	$decimationSamples = isset($_REQUEST['decimation_samples'])? $_REQUEST['decimation_samples']-0: 1000;
 	$decimation = isset($_REQUEST['decimation'])? $_REQUEST['decimation']: 'maxmin'; // maxmin, downsample, none
@@ -221,6 +221,8 @@
 				}
 			}
 			$big_data[$ts_counter+$k]['num_rows'] = mysqli_num_rows($res);
+			$big_data[$ts_counter]['query_time'] = $querytime - $oldquerytime;
+			$oldquerytime = $querytime;
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				if (isset($_REQUEST['debug'])) {print_r($row);} 
 				if ($row['time']==0) continue;
