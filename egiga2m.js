@@ -9,7 +9,7 @@
 // add smart periods on update
 // add regression https://github.com/Tom-Alexander/regression-js
 
-	var version = '1.15.5';
+	var version = '1.15.6';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -19,6 +19,7 @@
 	var myStop;
 	var exportURL = 'undefined';
 	var plotURL = 'undefined';
+	var jsonURL = 'undefined';
 	var exportFormat = 'csv';
 	var exportBlanks = '';
 	var exportDecimation = '';
@@ -236,7 +237,6 @@
 		if (style.length) style = '&style='+style;
 		var height = document.getElementById('height').value;
 		if (height.length) height = '&height='+height;
-		var decimationLink = '&decimation='+decimation+'&decimation_samples='+decimationSamples;
 		var hc = ''; // document.getElementById('show_hc').checked? '&show_hc=true': '';
 		var flot = document.getElementById('show_flot').checked? '&show_flot=true': '';
 		var table = document.getElementById('show_table').checked? '&show_table=true': '';
@@ -245,32 +245,32 @@
 		// path[path.length-1] = pathname.match(/[^\/]+$/)[0];
 		var event = '';
 		for (j=0; j<events.length; j++) event += document.getElementById('show_'+events[j]).checked? '&show_'+events[j]+'='+document.getElementById('filter_'+events[j]).value: '';
-		exportURL = window.location.protocol + "//" + window.location.host + path.join('/');
+		var homeURL = window.location.protocol + "//" + window.location.host + path.join('/');
 		path[path.length-1] = (pathname.indexOf('.html')==-1)? path[path.length-1]+'index_plot.html': path[path.length-1].replace('.html', '_plot.html');
+		plotURL = window.location.protocol + "//" + window.location.host + path.join('/');
 		path.pop();
-		plotURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.replace('./', '/')+start+stop+ts+decimationLink;
 		if (exportService.indexOf("./") == 0) {
 			exportService = window.location.protocol + "//" + window.location.host + path.join('/') + exportService.substr(1);
 		}
 		exportURL = exportService+start+stop+ts;
 		var necessaryParam = conf+start+stop+ts;
-		var optionalParam = yconf+style+height+decimationLink;
-		var jsonURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.substr(1)+necessaryParam.replace('conf=', '')+optionalParam;
-		// console.log('jsonURL', jsonURL);
-		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+necessaryParam.replace('conf=', '')+optionalParam;
-		// console.log('jsonTreeURL', jsonTreeURL);
+		var optionalParam = yconf+style+height;
+		jsonURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.substr(1)+start+stop+ts+optionalParam;
+		console.log('jsonURL', jsonURL);
+		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+start+stop+ts+optionalParam;
+		console.log('jsonTreeURL', jsonTreeURL);
 		if (typeof(myTs) !== 'undefined') {
 			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+table;
-			window.location = exportURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+table;
+			window.location = homeURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+table;
 		}
 		else {
 			document.getElementById("plotOnly").setAttribute("onClick","javascript: location='"+plotURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
 			document.getElementById("plotOnly").innerHTML = plotURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
-			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+exportURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
-			document.getElementById("plotAndControls").innerHTML = exportURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
+			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+homeURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
+			document.getElementById("plotAndControls").innerHTML = homeURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
 			if (document.getElementById("scratch")) {
-				document.getElementById("scratch").setAttribute("onClick","javascript: location='"+exportURL+'?'+conf+"'");
-				document.getElementById("scratch").innerHTML = exportURL+'?'+conf;
+				document.getElementById("scratch").setAttribute("onClick","javascript: location='"+homeURL+'?'+conf+"'");
+				document.getElementById("scratch").innerHTML = homeURL+'?'+conf;
 			}
 			exportBlanks = document.getElementById('exportZoh').checked? '&zoh': (document.getElementById('exportFoh').checked? '&foh': '');
 			exportFormat = document.getElementById("exportCsv").checked? 'csv': '';
@@ -289,7 +289,7 @@
 				document.getElementById("exportIgor").setAttribute("onClick","javascript: exportFormat = 'itx';document.getElementById('matDisabled').style.display='inline'; refreshExportLink();");
 			}
 			if (document.getElementById("exportJson")) {
-				document.getElementById("exportJson").setAttribute("onClick","javascript: exportFormat = 'json';document.getElementById('matDisabled').style.display='inline'; refreshExportLink();");
+				document.getElementById("exportJson").setAttribute("onClick","javascript: exportFormat = 'json';document.getElementById('matDisabled').style.display='none'; refreshExportLink();");
 				document.getElementById("exportJson").innerHTML = jsonURL;
 			}
 			if (document.getElementById("exportTreeJson")) {
@@ -304,6 +304,7 @@
 			document.getElementById('exportMean').setAttribute("onClick","javascript: exportDecimation = evalExportDecimation();refreshExportLink();");
 			document.getElementById('exportAvg').setAttribute("onClick","javascript: exportDecimation = evalExportDecimation();refreshExportLink();");
 			document.getElementById('tsLabel').setAttribute("onChange","javascript: refreshExportLink();");
+			document.getElementById('nullValue').setAttribute("onChange","javascript: refreshExportLink();");
 			document.getElementById("multiParam").value = plotURL+'?'+necessaryParam+optionalParam+hc+flot+event;
 		}
 	}
@@ -322,9 +323,10 @@
 
 	function refreshExportLink(){
 		var exportTsLabel = document.getElementById('tsLabel').value.length? '&tsLabel='+document.getElementById('tsLabel').value: '';
+		exportTsLabel = exportTsLabel + (document.getElementById('nullValue').value.length? '&nullValue='+document.getElementById('nullValue').value: '');
 		if (exportFormat==='json'){
-			document.getElementById('exportLink').innerHTML = plotURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
-			document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+plotURL+"&format="+exportFormat+exportBlanks+exportDecimation+exportTsLabel+"'");
+			document.getElementById('exportLink').innerHTML = jsonURL;
+			document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+jsonURL+"'");
 		}
 		else {
 			document.getElementById('exportLink').innerHTML = exportURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
