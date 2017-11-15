@@ -2,12 +2,11 @@
 
 	include './hdbpp_conf.php';
 	$timezone = date_default_timezone_get();
-	
-	$host = 'http://'.$_SERVER["HTTP_HOST"];
+
+	$protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off')? 'https': 'http';
+	$host = $protocol.'://'.$_SERVER["HTTP_HOST"];
 	$uri = explode('?', $_SERVER["REQUEST_URI"]);
 	$host .= strtr($uri[0], array('/lib/service/hdbpp_plot_service.php'=>''));
-
-	// if (isset($_REQUEST['debug'])) file_put_contents('debug.txt', json_encode($_REQUEST));
 
 	$state = array('ON','OFF','CLOSE','OPEN','INSERT','EXTRACT','MOVING','STANDBY','FAULT','INIT','RUNNING','ALARM','DISABLE','UNKNOWN');
 	$bool = array('FALSE','TRUE');
@@ -199,7 +198,7 @@
 					$conf_row = mysqli_fetch_array($res2, MYSQLI_ASSOC);
 					if (round($conf_row['time'])<strtotime($start[$xaxis-1]." $timezone"))
 					$big_data[$ts_counter]['data'][] = array('x'=>strtotime($start[$xaxis-1]." $timezone")*1000,'y'=>$conf_row['val']-0, 
-					'marker'=>array('symbol'=>'url(http://fcsproxy.elettra.trieste.it/docs/egiga2m/img/prestart.png)'), 
+					'marker'=>array('symbol'=>"url($host/img/prestart.png)"), 
 					'prestart'=>$conf_row['time']*1000); 
 				}
 			}
@@ -218,7 +217,15 @@
 				$big_data[$ts_counter]['num_rows'] = mysqli_num_rows($res);
 				$big_data[$ts_counter]['query_time'] = $querytime - $oldquerytime;
 				$oldquerytime = $querytime;
+				if (isset($_REQUEST['dump'])) {echo "<br>\nINSERT INTO $table (data_time, att_conf_id, value_r) VALUES "; $dumprow=0;}
 				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+					if (isset($_REQUEST['dump'])) {
+						if ($dumprow==1000) {echo ";<br>\nINSERT INTO $table (data_time, att_conf_id, value_r) VALUES "; $dumprow=0;} 
+						if ($dumprow>0) echo ',';
+						$dumprow++;
+						echo '('.date("'Y-m-d H:i:s'", $row['time']).",$att_conf_id,".(strlen($row['val'])? $row['val']-0: 'NULL').')'; 
+						continue; 
+					}
 					if ($oversampled) {
 						if (isset($_REQUEST['debug'])) debug($row, "oversampled, decimation: $decimation, row");
 						if ($decimation=='downsample') {
@@ -258,10 +265,10 @@
 							}
 							else {
 								$slot = floor(($row['time']-$start_timestamp)/$slot_maxmin);
-								if (isset($max[$slot]) and is_null($max[$slot][1])) continue;
+								// if (isset($max[$slot]) and is_null($max[$slot][1])) continue;
 								if (isset($_REQUEST['debug']) and (is_null($row['val']))) debug($row, gettype($row['val']));
 								$v = $row['val']-0;
-								if (isset($max[$slot])) {
+								if (isset($max[$slot]) && !is_null($max[$slot][1])) {
 									if ($v>$max[$slot][1]) $max[$slot] = array($row['time']*1000, $v);
 									if ($v<$min[$slot][1]) $min[$slot] = array($row['time']*1000, $v);
 								}
@@ -294,6 +301,7 @@
 						}
 					}
 				}
+				if (isset($_REQUEST['dump'])) {echo ";";}
 			}
 			if ($decimation=='maxmin') {
 				if (isset($_REQUEST['debug'])) debug($max, 'max');
@@ -374,7 +382,6 @@
 				$col_name = 'error_desc';
 				$orderby = $dim=='array'? "time,idx": "data_time";
 				$filter = (strlen($_REQUEST["show_error"]) and ($_REQUEST["show_error"]!=='1'))? "AND $col_name LIKE ".quote_smart(strtr($_REQUEST["show_error"], array('*'=>'%'))): ""; 
-				// http://fcsproxy.elettra.trieste.it/docs/egiga2m/lib/service/hdbpp_plot_service.php?conf=fermi&start=2016-08-20%2000:00:00&stop=2016-08-30%2000:00:00&ts=8&show_error=1
 				$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, att_error_desc.$col_name FROM $table, att_error_desc WHERE {$table}.att_error_desc_id=att_error_desc.att_error_desc_id $filter AND att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
 				if (isset($_REQUEST['errdebug'])) echo "$query;<br>\n";
 				// $query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE $filter AND att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
@@ -412,17 +419,17 @@
 	if ($show['alarm']) {
 		$data = array();
 		$messages = array();
-		// $db = mysqli_connect('srv-db-srf', 'alarm', 'FermiAlarm2009');
-		// mysql -h srv-db-srf -u alarm-client alarm
-		$db = mysqli_connect(($_REQUEST['conf']=='fermi'? 'srv-db-srf': 'ecsproxy'), 'alarm-client', '');
-		mysqli_select_db($db, 'alarm');
+		$db = mysqli_connect(ALARM_HOST, ALARM_USER, ALARM_PASSWORD);
+		mysqli_select_db($db, ALARM_DB);
+		//$db = mysqli_connect(($_REQUEST['conf']=='fermi'? 'srv-db-srf': 'ecsproxy'), 'alarm-client', '');
+		//mysqli_select_db($db, 'alarm');
 		$stop_cond = strlen($stop_timestamp[0]) ? " AND alarms.time_sec < {$stop_timestamp[0]}": '';
 		$col_name = 'description.name';
 		$condition = quote_smart(strtr($_REQUEST["show_alarm"], array('*'=>'%')));
 		$filter = (strlen($_REQUEST["show_alarm"]) and ($_REQUEST["show_alarm"]!=='1'))? "((description.name LIKE $condition) OR (description.msg LIKE $condition))": "NOT ISNULL($col_name)"; 
 		$query = "SELECT alarms.time_sec*1000+ROUND(alarms.time_usec/1000) AS t,description.name,description.msg FROM alarms,description WHERE $filter AND alarms.id_description=description.id_description AND alarms.time_sec >= UNIX_TIMESTAMP('{$start[0]}')$stop_cond AND status='ALARM' AND ack='NACK' ORDER BY t";
 		if (isset($_REQUEST['debug'])) debug($query);
-		$res = mysqli_query($db, $query);
+		// $res = mysqli_query($db, $query);
 		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 			$text = "{$row['name']}<br>{$row['msg']}";
 			if (($msg = array_search($text, $messages)) === false) {
@@ -467,7 +474,7 @@
 		$big_data['button']['data'][3] = array('x'=>(strtotime($start[0]) + ($stop_timestamp[0] - strtotime($start[0])) / 1.05) * 1000, 'y'=>$y, 'message'=>1,'marker'=>array('symbol'=>"url($host/img/event_button.png)"));
 	}
 	*/
-	// debug($query); exit(0);
+	if (isset($_REQUEST['dump'])) {exit(0);}
 	header("Content-Type: application/json");
 	echo json_encode($big_data);
 ?>
