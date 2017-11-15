@@ -13,6 +13,7 @@
 
 	$pretimer = !isset($_REQUEST['no_pretimer']);
 	$posttimer = !isset($_REQUEST['no_posttimer']);
+	$nullValue = isset($_REQUEST['nullValue'])? strip_tags($_REQUEST['nullValue']): '';
 
 	$db = mysqli_connect(HOST, USERNAME, PASSWORD);
 	mysqli_select_db($db, DB);
@@ -117,7 +118,7 @@
 		if (!isset($_REQUEST['debug'])) $php2mat->php2mat5_head('eGiga2m.mat', "Created on: ".date("d-F-Y H:i:s"));
 		$label_num = 0;
 		$tsLabel = array();
-		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', $_REQUEST['tsLabel']);}
+		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', strip_tags($_REQUEST['tsLabel']));}
 		foreach ($ts as $xaxis=>$ts_array) {
 			foreach ($ts_array as $ts_num=>$ts_id_num) {
 				if (isset($_REQUEST['debug'])) debug($ts_id_num,'ts_id_num');
@@ -413,7 +414,7 @@
 		$query_array = $old_data = $old_time = array();
 		$label_num = 0;
 		$tsLabel = array();
-		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', $_REQUEST['tsLabel']);}
+		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', strip_tags($_REQUEST['tsLabel']));}
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
 			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
 			// if (isset($_REQUEST['debug'])) die("memory_usage: ".memory_get_usage());
@@ -484,7 +485,7 @@
 	// ----------------------------------------------------------------
 	// emit igor,csv,matlab statistics
 	function emit_data($data_type) {
-		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $skipdomain, $data_type_result;
+		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $skipdomain, $data_type_result, $nullValue;
 		if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
 		$memory_limit = ini_get('memory_limit');
 		if (preg_match('/^(\d+)(.)$/', $memory_limit, $matches)) {
@@ -528,7 +529,7 @@
 		$query_array = $old_data = $old_time = array();
 		$label_num = 0;
 		$tsLabel = array();
-		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', $_REQUEST['tsLabel']);}
+		if (isset($_REQUEST['tsLabel'])) {$tsLabel = explode(';', strip_tags($_REQUEST['tsLabel']));}
 		foreach ($ts_array as $ts_num=>$ts_id_num) {
 			if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
 			$big_data_w = array();
@@ -594,14 +595,14 @@
 			if ($old_time[$row['ts_index']]==$row['timestamp']) {
 				if ($last_id==$row['ts_index']) continue; 
 				for ($i=$last_id+1; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
-				if ($last_id<$max_id) emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $row['val']));
+				if ($last_id<$max_id) emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
 			}
 			else {
 				for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
 				emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: $row['time']));
 				for ($i=0; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
 				// if (isset($_REQUEST['debug'])) {debug($row, 'row'); debug(is_null($row['val'])); debug(is_numeric($row['val']));}
-				emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $row['val']));
+				emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
 			}
 			$old_time[$row['ts_index']] = $row['timestamp'];
 			$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): ($data_type=='itx'? "NAN": NULL);
