@@ -48,6 +48,7 @@
 	var updateDecimation = 0;
 	var updateCounter = 0;
 	var updateId = false;
+	var downtimeCheck = false;
 	var flotOptions = {
 		series: { lines: { show: true } },
 		grid: { hoverable: true, clickable: true},
@@ -71,6 +72,10 @@
 	if (typeof($_GET['decimation']) !== 'undefined') {
 		decimation = $_GET['decimation'];
 	}
+	if (typeof($_GET['downtimeCheck']) !== 'undefined') {
+		downtimeCheck = true;
+	}
+	if (document.getElementById('downtimeCheck')) document.getElementById('downtimeCheck').checked = downtimeCheck;
 	if (document.getElementById('decimation_'+decimation)) document.getElementById('decimation_'+decimation).selected = true;
 	if (typeof($_GET['decimation_samples']) !== 'undefined') {
 		decimationSamples = $_GET['decimation_samples'];
@@ -253,8 +258,12 @@
 			exportService = window.location.protocol + "//" + window.location.host + path.join('/') + exportService.substr(1);
 		}
 		exportURL = exportService+start+stop+ts;
+		const downtimeCheckStr = document.getElementById('downtimeCheck').checked? '&downtimeCheck=true': '';
+		const decimationStr = decimation!=='maxmin'? '&decimation='+decimation: '';
+		const decimationSamplesStr = decimationSamples!=1000? '&decimationSamples='+decimationSamples: '';
+		console.log('downtimeCheck: '+downtimeCheck);
 		var necessaryParam = conf+start+stop+ts;
-		var optionalParam = yconf+style+height;
+		var optionalParam = yconf+style+height+decimationStr+decimationSamplesStr+downtimeCheckStr;
 		jsonURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.substr(1)+start+stop+ts+optionalParam;
 		console.log('jsonURL', jsonURL);
 		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+start+stop+ts+optionalParam;
@@ -1052,8 +1061,22 @@
 		else if (stop.length) stop_param = '&stop=' + stop;
 		var prestart = document.getElementById('show_hc').checked? '&prestart=hc': '';
 		var ts = decodeTs(tsRequest);
-		console.log(plotService+'&'+start_param+stop_param+'&ts='+tsRequest+prestart+event);
+		const stopTime = stop.length? new Date(stop): new Date();
+		console.log('stopTime: '+stopTime.valueOf());
 		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
+			const downtimeCheck = document.getElementById('downtimeCheck')? document.getElementById('downtimeCheck').checked: false;
+			if (downtimeCheck) {
+				const startTimestamp = data.ts[0].data[0].x? data.ts[0].data[0].x: data.ts[0].data[0][0];
+				console.log('startTimestamp: '+startTimestamp);
+				const missingTS = new Array();
+				for (var dataIndex=0; dataIndex<data.ts.length; dataIndex++) {
+					const lastTimestamp = data.ts[dataIndex].data[data.ts[dataIndex].data.length-1][0];
+					console.log('lastTimestamp: '+lastTimestamp);
+					console.log('formula: '+((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp))+ ', 20 / data.ts[dataIndex].data.length: '+(20 / data.ts[dataIndex].data.length));
+					if ((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp) > 20 / data.ts[dataIndex].data.length) missingTS.push(data.ts[dataIndex].label);
+				}
+				if (missingTS.length) alert("WARNIG\nsome data may be missing (may be server or replication downtime) for Time Series:\n"+missingTS.join(','));
+			}
 			plotData(evalFormulae(data.ts), data.event, start, stop);
 		})
 	}
