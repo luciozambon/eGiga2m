@@ -354,7 +354,7 @@
 	if (isset($_REQUEST['debug'])) debug($show, 'show');
 	if (count($show) and (!empty($big_data[0]['data']))) {
 		foreach ($big_data[0]['data'] as $d) {
-			if ($d[1] !== NULL) {
+			if (isset($d[1]) && ($d[1] !== NULL)) {
 				$y = $d[1];
 				break;
 			}
