@@ -337,6 +337,7 @@
 					<tr><td>&nbsp;&nbsp;<label>Logarithmic</label>&nbsp;&nbsp;</td><td><input type="checkbox" name='logY1' id='logY1set'></td><td>&nbsp;&nbsp;&nbsp;&nbsp;</td><td><input type="checkbox" name='logY2' id='logY2set'></td></tr>
 				</table><br>
 				<label> Show time series data in a table <input type="checkbox" id='show_table'></label> <br><br>
+				<label> Warn if data may be missing <input type="checkbox" id='downtimeCheck'></label> <br><br>
 				<label> Decimation <select id='decimation'>
 					<option id='decimation_none' value='none'>none</option>
 					<option id='decimation_maxmin' value='maxmin'>maxmin</option>
@@ -422,6 +423,8 @@
 	<input type='hidden' id='logY'>
 	<input type='hidden' id='height'>
 	<input type='hidden' id='style'>
+	<input type='hidden' id='nullValue'>
+	<input type='hidden' id='downtimeCheck'>
 
 	<!-- Placed at the end of the document so the pages load faster -->
 
