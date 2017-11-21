@@ -18,6 +18,18 @@
 	mysqli_select_db($db, DB);
 
 	$now = time();
+
+	if (isset($_REQUEST['Seconds_Behind_Master'])) {
+		header("Content-Type: application/json");
+		$query = "SHOW SLAVE STATUS";
+		$res = mysqli_query($db, $query);
+		if ($res) while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			die(json_encode($row['Seconds_Behind_Master']-0));
+		}
+		else {
+			die(json_encode(mysqli_error($db)));
+		}
+	}
 	
 	// ----------------------------------------------------------------
 	// Quote variable to make safe
