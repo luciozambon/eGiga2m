@@ -81,7 +81,7 @@
 		decimationSamples = $_GET['decimation_samples'];
 	}
 	if (document.getElementById('decimationSamples')) document.getElementById('decimationSamples').value = decimationSamples;
-	console.log('plotService: '+plotService);
+	// console.log('plotService: '+plotService);
 
 	if (typeof(isHighChartsInstalled) !== 'boolean' && document.getElementById('show_flot')) {
 		document.getElementById('show_flot').checked = true;
@@ -261,13 +261,13 @@
 		const downtimeCheckStr = document.getElementById('downtimeCheck').checked? '&downtimeCheck=true': '';
 		const decimationStr = decimation!=='maxmin'? '&decimation='+decimation: '';
 		const decimationSamplesStr = decimationSamples!=1000? '&decimationSamples='+decimationSamples: '';
-		console.log('downtimeCheck: '+downtimeCheck);
+		// console.log('downtimeCheck: '+downtimeCheck);
 		var necessaryParam = conf+start+stop+ts;
 		var optionalParam = yconf+style+height+decimationStr+decimationSamplesStr+downtimeCheckStr;
 		jsonURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.substr(1)+start+stop+ts+optionalParam;
-		console.log('jsonURL', jsonURL);
+		// console.log('jsonURL', jsonURL);
 		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+start+stop+ts+optionalParam;
-		console.log('jsonTreeURL', jsonTreeURL);
+		// console.log('jsonTreeURL', jsonTreeURL);
 		if (typeof(myTs) !== 'undefined') {
 			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+table;
 			window.location = homeURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+table;
@@ -796,8 +796,7 @@
 		attr = extractTimeseries(evt.dataTransfer.getData("text"));
 		// attr = evt.dataTransfer.getData('application/taurus-device'); does this work with taurus?
 		addTs = evt.dataTransfer.dropEffect=='copy';
-		console.log(evt.dataTransfer.dropEffect);
-		// alert(treeService+'&searchkey='+attr);
+		// console.log(evt.dataTransfer.dropEffect);
 		$.get(treeService+'&searchkey='+attr, function(data) {
 			if (typeof(data[0]) !== 'undefined') {
 				console.log(document.getElementById('ts').value);
@@ -1062,18 +1061,18 @@
 		var prestart = document.getElementById('show_hc').checked? '&prestart=hc': '';
 		var ts = decodeTs(tsRequest);
 		const stopTime = stop.length? new Date(stop): new Date();
-		console.log('stopTime: '+stopTime.valueOf());
+		// console.log('stopTime: '+stopTime.valueOf());
 		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
 			const downtimeCheck = document.getElementById('downtimeCheck')? document.getElementById('downtimeCheck').checked: false;
 			if (downtimeCheck) {
 				const startTimestamp = data.ts[0].data[0].x? data.ts[0].data[0].x: data.ts[0].data[0][0];
-				console.log('startTimestamp: '+startTimestamp);
+				// console.log('startTimestamp: '+startTimestamp);
 				const missingTS = new Array();
 				for (var dataIndex=0; dataIndex<data.ts.length; dataIndex++) {
 					const lastTimestamp = data.ts[dataIndex].data[data.ts[dataIndex].data.length-1][0];
-					console.log('lastTimestamp: '+lastTimestamp);
-					console.log('formula: '+((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp))+ ', 20 / data.ts[dataIndex].data.length: '+(20 / data.ts[dataIndex].data.length));
-					if ((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp) > 20 / data.ts[dataIndex].data.length) missingTS.push(data.ts[dataIndex].label);
+					// console.log('lastTimestamp: '+lastTimestamp);
+					// console.log('formula: '+((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp))+ ', 10 / data.ts[dataIndex].data.length: '+(10 / data.ts[dataIndex].data.length));
+					if ((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp) > 10 / data.ts[dataIndex].data.length) missingTS.push(data.ts[dataIndex].label);
 				}
 				if (missingTS.length) alert("WARNIG\nsome data may be missing (may be server or replication downtime) for Time Series:\n"+missingTS.join(','));
 			}
@@ -1225,7 +1224,7 @@
 // ------------
 	var printing = false;
 	function hcPlot(data, eventData, startArray, stopArray){
-		console.log('data: ',data);
+		// console.log('data: ',data);
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		var style = 'step';
@@ -1243,7 +1242,7 @@
 		}
 		k=0;
 		for (j=0; j<events.length; j++) document.getElementById('event_'+events[j]).style.display = 'none';
-		console.log('curves: ',curves);
+		// console.log('curves: ',curves);
 		for (var j in curves) {
 			if (j=='clone') continue;
 			if (data) while (data[k] && data[k]['ts_id']==curves[j]['request']) {
@@ -1262,7 +1261,7 @@
 			}
 			else emptyMessage = "No variable selected"
 		}
-		console.log('myPlotClass: ',myPlotClass);
+		// console.log('myPlotClass: ',myPlotClass);
 		for (var j in eventData) {
 			if (j=='clone') continue;
 			if (typeof(fade_level[j]) === 'undefined') continue;
@@ -1278,29 +1277,6 @@
 				document.getElementById('event_'+j).style.display = 'inline';
 				k++;
 			}
-			/*
-		for (var j in curves) {
-			if (j=='clone') continue;
-			myPlotClass[j] = new Array();
-			myPlotClass[j].name = (typeof(tsLabel) !== 'undefined' && typeof(tsLabel[j]) !== 'undefined')? tsLabel[j]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[j]['label'].replace(/&deg;/g, "°");
-			myPlotClass[j].xAxis = data[j]['xaxis']-1;
-			myPlotClass[j].yAxis = $.isNumeric(curves[j].y)? curves[j].y-1: 0;
-			myPlotClass[j].data = data[j]['data'];
-			myPlotClass[j].step = style=='step'? 'left': false;
-			if (xaxis_max_index < data[j]['xaxis']) xaxis_max_index = data[j]['xaxis'];
-			if (typeof(data[j]['categories']) !== 'undefined') categories[data[j]['yaxis']-1] = data[j]['categories'];
-			k++;
-		}
-			else {
-				myPlotClass[j].name = (yaxis_max_index>1? 'Y'+data[j]['yaxis']+' ':'')+data[j]['label'].replace(/&deg;/g, "°");
-				myPlotClass[j].xAxis = data[j]['xaxis']-1;
-				myPlotClass[j].yAxis = $.isNumeric(data[j]['yaxis'])? data[j]['yaxis']-1: 0;
-				myPlotClass[j].data = data[j]['data'];
-				myPlotClass[j].step = style=='step'? 'left': false;
-				if (xaxis_max_index < data[j]['xaxis']) xaxis_max_index = data[j]['xaxis'];
-				if (typeof(data[j]['categories']) !== 'undefined') categories[data[j]['yaxis']-1] = data[j]['categories'];
-			}
-			*/
 		}
 		if (typeof(window.$_GET['tsLabel']) !== 'undefined') {
 			var tsLabel = window.$_GET['tsLabel'].split(';');
