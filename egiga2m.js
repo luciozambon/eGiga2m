@@ -1061,6 +1061,11 @@
 		var prestart = document.getElementById('show_hc').checked? '&prestart=hc': '';
 		var ts = decodeTs(tsRequest);
 		const stopTime = stop.length? new Date(stop): new Date();
+		if (downtimeCheck) {
+			$.get(plotService+'&Seconds_Behind_Master', function(behind) {
+				if (behind>60) alert('WARNING\nThe data has not been updated for '+behind+' seconds');
+			})
+		}
 		// console.log('stopTime: '+stopTime.valueOf());
 		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
 			const downtimeCheck = document.getElementById('downtimeCheck')? document.getElementById('downtimeCheck').checked: false;
