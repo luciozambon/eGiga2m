@@ -838,7 +838,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				// if (!isset($data[$row['time']])) $data[$row['time']] = array_merge($ts_array, array_fill(0,count($ts_array), ''));
 				if (!isset($data[$row['time']])) $data[$row['time']] = $ts_empty;
-				// debug($data[$row['time']]);debug($ts_id_num);
+				// if (isset($_REQUEST['debug'])) {debug($data[$row['time']]);debug($ts_id_num);}
 				$data[$row['time']][$ts_map[$ts_id_num[0]]] = is_null($row['val'])? $row['val']: $row['val']-0;
 			}
 			$ts_counter++;
@@ -847,7 +847,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	}
 
 	ksort($data);
-	// debug($data);
+	// if (isset($_REQUEST['debug'])) debug($data);
 	if ($mat) {
 		$php2mat->SendFile("eGiga2m.mat", $big_data, "eGiga2m, Platform: $platform, Created on: ".date("d-F-Y H:i:s"));
 		exit();
@@ -923,7 +923,7 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		}
 		exit();
 	}
-	if ($igor) {
+	if ($_REQUEST['format']=='igor' || $_REQUEST['format']=='itx') {
 		emit_igor($data, $csv_header);
 	}
 ?>
