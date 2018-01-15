@@ -462,7 +462,9 @@
 		// console.log(typeof(document.getElementById('tree')));
 		if (!$('#tree').length) return;
 		var source_url = treeService;
-		if (typeof(formula_edit) === 'undefined') $(tree).width(250).height($(window).height()-320);
+		let treeHeight = $(window).height()-320;
+		if (treeHeight < 150) treeHeight = 150;
+		if (typeof(formula_edit) === 'undefined') $(tree).width(250).height(treeHeight);
 		if (typeof($_GET['ts']) !== 'undefined') source_url = source_url + '&ts=' + $_GET['ts'];
 		$("#tree").fancytree({
 			autoScroll: true,
@@ -548,16 +550,20 @@
 			document.getElementById('hidetree').InnerHTML = "<img src='./img/left.png'>";
 			$('body').find('#hidetree').html("<img src='./img/left.png'>")
 			document.getElementById('treeid').style.display = 'inline';
-			$("#mybackground").width($(window).width()-280).height(((height-0)+10)+'px');
-			$("#placeholder").width($(window).width()-290).height(height+'px');
+			let plotWidth = $(window).width()-280;
+			if (plotWidth < 300) plotWidth = 300;
+			$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
+			$("#placeholder").width(plotWidth-10).height(height+'px');
 			rePlotTs();
 		}
 		else {
 			document.getElementById('hidetree').InnerHTML = "<img src='./img/right.png'>";
 			$('body').find('#hidetree').html("<img src='./img/right.png'>")
 			document.getElementById('treeid').style.display = 'none';
-			$("#mybackground").width($(window).width()-30).height(((height-0)+10)+'px');
-			$("#placeholder").width($(window).width()-40).height(height+'px');
+			let plotWidth = $(window).width()-30;
+			if (plotWidth < 300) plotWidth = 300;
+			$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
+			$("#placeholder").width(plotWidth-10).height(height+'px');
 			rePlotTs();
 		}
 	}
@@ -1045,8 +1051,11 @@
 		event = `${event}&decimation=${decimation}&decimation_samples=${decimationSamples}`;
 		// adjust plot dimensions
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
-		$("#mybackground").width($(window).width()-(($('#tree').length > 0)? 280: 0)).height(((height-0)+10)+'px');
-		$("#placeholder").width($(window).width()-(($('#tree').length > 0)? 290: 10)).height(height+'px');
+		if (height < 300) height = 300;
+		let plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
+		if (plotWidth < 300) plotWidth = 300;
+		$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
+		$("#placeholder").width(plotWidth-10).height(height+'px');
 		$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<img src='./img/timer.gif'>");
 		var start_param = 'start=' + start;
 		var stop_param = '';
@@ -1061,11 +1070,11 @@
 		var prestart = document.getElementById('show_hc').checked? '&prestart=hc': '';
 		var ts = decodeTs(tsRequest);
 		const stopTime = stop.length? new Date(stop): new Date();
-		if (downtimeCheck) {
+		// if (downtimeCheck) {
 			$.get(plotService+'&Seconds_Behind_Master', function(behind) {
 				if (behind>60) alert('WARNING\nThe data has not been updated for '+behind+' seconds');
 			})
-		}
+		//}
 		// console.log('stopTime: '+stopTime.valueOf());
 		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
 			const downtimeCheck = document.getElementById('downtimeCheck')? document.getElementById('downtimeCheck').checked: false;
@@ -1232,6 +1241,7 @@
 		// console.log('data: ',data);
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
+		if (height < 300) height = 300;
 		var style = 'step';
 		var categories = new Array(false,false,false,false,false,false,false,false,false,false);
 		var minYArray = (document.getElementById('minY') && document.getElementById('minY').value.length)? document.getElementById('minY').value.split(';'): [];
@@ -1252,8 +1262,9 @@
 			if (j=='clone') continue;
 			if (data) while (data[k] && data[k]['ts_id']==curves[j]['request']) {
 				myPlotClass[k] = new Array();
-				const samplesPerSecond = data[k]['query_time']>0? ', Samples per second: '+(data[k]['num_rows']/data[k]['query_time']).toFixed(0): '';
-				const title = 'Samples: '+data[k]['data'].length+(data[k]['num_rows']>data[k]['data'].length? '/'+data[k]['num_rows']: '')+', query time: '+data[k]['query_time'].toFixed(2)+' [s]'+samplesPerSecond;
+				const query_time = (data[k]['query_time'])? data[k]['query_time']: 0;
+				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[k]['num_rows']/query_time).toFixed(0): '';
+				const title = 'Samples: '+data[k]['data'].length+(data[k]['num_rows']>data[k]['data'].length? '/'+data[k]['num_rows']: '')+((data[k]['query_time'])?', query time: '+query_time.toFixed(2)+' [s]'+samplesPerSecond:'');
 				myPlotClass[k].name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
 				if (typeof($_GET['num_rows']) !== 'undefined') myPlotClass[k].name = myPlotClass[k].name+' num_rows: '+data[k]['num_rows'];
 				myPlotClass[k].xAxis = data[k]['xaxis']-1;
