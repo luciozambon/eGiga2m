@@ -90,7 +90,8 @@
 		if ($res2 !== false) while ($row = mysqli_fetch_array($res2, MYSQLI_ASSOC)) {
 			$key2 = $row['description'];
 			$title2 = strtr($row['description'], $skipdomain);
-			if (isset($tree_base[$title2])) {
+			if (isset($_REQUEST['debug'])) {debug($key2, 'key2'); debug($title2, 'title2'); debug($tree_base, 'tree_base');}
+			if (isset($tree_base[strtolower($title2)])) {
 				$children[] = expand_children($tree_base, $key2, $title2, $tree_index+1);
 			}
 			else {
@@ -157,10 +158,11 @@
 				$tree_base[$tok_base] = $y_index;
 			}
 		}
-		// debug($tree_base); exit(0);
+		if (isset($_REQUEST['debug'])) {debug($tree_base);}
 		$tree_index = 1;
 		$res = mysqli_query($db, "SELECT DISTINCT SUBSTRING_INDEX(full_name,'/',$tree_index) AS description FROM adt ORDER BY description");
 		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+			if (isset($_REQUEST['debug'])) {debug($row);}
 			$key = $row['description'];
 			$title = strtr($row['description'], $skipdomain);
 			if (isset($tree_base[$title])) {
