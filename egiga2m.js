@@ -8,8 +8,9 @@
 // add other decimation method (mean, average, random...)
 // add smart periods on update
 // add regression https://github.com/Tom-Alexander/regression-js
+// us mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.15.6';
+	var version = '1.15.7';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -71,6 +72,9 @@
 	}
 	if (typeof($_GET['decimation']) !== 'undefined') {
 		decimation = $_GET['decimation'];
+	}
+	if (typeof($_GET['hideOverMaxmin']) !== 'undefined') {
+		if (document.getElementById('hideOverMaxmin')) document.getElementById('hideOverMaxmin').checked = true;
 	}
 	if (typeof($_GET['downtimeCheck']) !== 'undefined') {
 		downtimeCheck = true;
@@ -261,9 +265,10 @@
 		const downtimeCheckStr = document.getElementById('downtimeCheck').checked? '&downtimeCheck=true': '';
 		const decimationStr = decimation!=='maxmin'? '&decimation='+decimation: '';
 		const decimationSamplesStr = decimationSamples!=1000? '&decimationSamples='+decimationSamples: '';
+		const hideOverMaxmin = (document.getElementById('hideOverMaxmin') && document.getElementById('hideOverMaxmin').checked)? '&hideOverMaxmin=true': '';
 		// console.log('downtimeCheck: '+downtimeCheck);
 		var necessaryParam = conf+start+stop+ts;
-		var optionalParam = yconf+style+height+decimationStr+decimationSamplesStr+downtimeCheckStr;
+		var optionalParam = yconf+style+height+decimationStr+decimationSamplesStr+downtimeCheckStr+hideOverMaxmin;
 		jsonURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.substr(1)+start+stop+ts+optionalParam;
 		// console.log('jsonURL', jsonURL);
 		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+start+stop+ts+optionalParam;
@@ -1049,6 +1054,16 @@
 		var event = '';
 		for (j=0; j<events.length; j++) event += document.getElementById('show_'+events[j]).checked? '&show_'+events[j]+'='+document.getElementById('filter_'+events[j]).value: '';
 		event = `${event}&decimation=${decimation}&decimation_samples=${decimationSamples}`;
+		console.log(document.getElementById('hideOverMaxmin').checked);
+		// document.getElementById('hideOverMaxmin').value = true;
+		var hideOverMaxmin = document.getElementById('hideOverMaxmin')? document.getElementById('hideOverMaxmin').checked: false;
+		if (hideOverMaxmin) {
+			event += '&hideOverMaxmin=';
+			var maxY = document.getElementById('maxY').value;
+			if (maxY.length>1) event += '&maxY=' + maxY;
+			var minY = document.getElementById('minY').value;
+			if (minY.length>1) event += '&minY=' + minY;
+		}
 		// adjust plot dimensions
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		if (height < 300) height = 300;
@@ -1265,6 +1280,7 @@
 				const query_time = (data[k]['query_time'])? data[k]['query_time']: 0;
 				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[k]['num_rows']/query_time).toFixed(0): '';
 				const title = 'Samples: '+data[k]['data'].length+(data[k]['num_rows']>data[k]['data'].length? '/'+data[k]['num_rows']: '')+((data[k]['query_time'])?', query time: '+query_time.toFixed(2)+' [s]'+samplesPerSecond:'');
+				myPlotClass[k].shortName = ((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[k]['label'].replace(/&deg;/g, "°"));
 				myPlotClass[k].name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
 				if (typeof($_GET['num_rows']) !== 'undefined') myPlotClass[k].name = myPlotClass[k].name+' num_rows: '+data[k]['num_rows'];
 				myPlotClass[k].xAxis = data[k]['xaxis']-1;
@@ -1340,7 +1356,7 @@
 						var request = new Array();
 						for (var j=0; j<myPlotClass.length; j++) {
 							if (j=='clone') continue;
-							var name = myPlotClass[j].name;
+							var name = myPlotClass[j].shortName;
 							if (name.substring(0, 1)=='Y' && $.isNumeric(name.substring(1, 2))) name = name.substring(3);
 							request[j] = name;
 						}
@@ -1355,6 +1371,8 @@
 								// console.debug(updateCounter);
 								for (var j in data) {
 									if (j=='clone') continue;
+									// validate timestamp
+									if (data[j][0] === 0) continue;
 									myPlot.series[j].addPoint(data[j], true, false); 
 								}
 							});
