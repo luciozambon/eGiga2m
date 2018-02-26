@@ -223,9 +223,17 @@
 			$big_data[$ts_counter+$k]['num_rows'] = mysqli_num_rows($res);
 			$big_data[$ts_counter]['query_time'] = $querytime - $oldquerytime;
 			$oldquerytime = $querytime;
+			if (isset($_REQUEST['dump'])) {list($column, $trash) = explode(' AS ', $col_name); echo "<br>\nINSERT INTO $table (time, $column) VALUES "; $dumprow=0;} 
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				if (isset($_REQUEST['debug'])) {print_r($row);} 
 				if ($row['time']==0) continue;
+				if (isset($_REQUEST['dump'])) {
+					if ($dumprow==1000) {echo ";<br>\nINSERT INTO $table (time, $column) VALUES "; $dumprow=0;} 
+					if ($dumprow>0) echo ',';
+					$dumprow++;
+					echo '('.date("'Y-m-d H:i:s'", $row['time']).','.(strlen($row['val'])? $row['val']-0: 'NULL').')'; 
+					continue; 
+				}
 				// if ($xls) {$myxls->Data[] = array($row['time'],$row['val']); continue;}
 				if ($oversampled) {
 					if ($decimation=='downsample') {
@@ -251,12 +259,16 @@
 						}
 						else {
 							$v = $type=='string'? $row['val']: (strlen($row['val'])? $row['val']-0: $row['val']);
+							if (isset($_REQUEST['hideOverMaxmin']) && isset($_REQUEST['maxY']) && ($v > $_REQUEST['maxY'])) continue;
+							if (isset($_REQUEST['hideOverMaxmin']) && isset($_REQUEST['minY']) && ($v < $_REQUEST['minY'])) continue;
 							$big_data[$ts_counter]['data'][] = array($row['time']*1000, $v);
 						}
 					}
 					else if ($decimation=='maxmin') {
 						$slot = floor(($row['time']-$start_timestamp)/$slot_maxmin);
 						$v = $row['val']-0;
+						if (isset($_REQUEST['hideOverMaxmin']) && isset($_REQUEST['maxY']) && ($v > $_REQUEST['maxY'])) continue;
+						if (isset($_REQUEST['hideOverMaxmin']) && isset($_REQUEST['minY']) && ($v < $_REQUEST['minY'])) continue;
 						if (isset($max[$slot])) {
 							if ($v>$max[$slot][1]) $max[$slot] = array($row['time']*1000, $v);
 							if ($v<$min[$slot][1]) $min[$slot] = array($row['time']*1000, $v);
@@ -284,6 +296,8 @@
 					}
 					else {
 						$v = $type=='string'? $row['val']: (strlen($row['val'])? $row['val']-0: $row['val']);
+						if (isset($_REQUEST['hideOverMaxmin']) && isset($_REQUEST['maxY']) && ($v > $_REQUEST['maxY'])) continue;
+						if (isset($_REQUEST['hideOverMaxmin']) && isset($_REQUEST['minY']) && ($v < $_REQUEST['minY'])) continue;
 						$big_data[$ts_counter]['data'][] = array($row['time']*1000, $v);
 					}
 				}
@@ -294,6 +308,7 @@
 				}
 				*/
 			}
+			if (isset($_REQUEST['dump'])) {echo ";";}
 			if ($decimation=='maxmin') {
 				foreach ($max as $slot=>$point) {
 					if ($point[0]<$min[$slot][0]) {
@@ -335,7 +350,7 @@
 	// if (isset($_REQUEST['categorized'])) 
 	$big_data = array('ts'=>$big_data);
 
-	// debug($query); exit(0);
+	if (isset($_REQUEST['dump'])) {exit(0);}
 	header("Content-Type: application/json");
 	echo json_encode($big_data);
 ?>
