@@ -183,6 +183,8 @@
 			}
 			$orderby = "time";
 			$dim = $row['data_format'];
+			if ($dim==1) $decimation = 'downsample';
+			if (isset($_REQUEST['debug'])) {debug($row, 'row'); }
 			$period = $stop_timestamp[$xaxis-1]-strtotime($start[$xaxis-1]);
 			$pretimer_limit = date('Y-m-d H:i:s', strtotime($start[$xaxis-1])-$period*log($period)/2);
 			$union = ''; //$pretimer? " UNION (SELECT time, $col_name FROM $table WHERE time < '{$start[$xaxis-1]}' AND time > '$pretimer_limit' ORDER BY time DESC LIMIT 1)": '';
@@ -247,6 +249,7 @@
 								foreach ($v as $k=>$i) {
 									$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0]."[$k]";
 									$big_data[$ts_counter+$k]['label'] = strtr($row['full_name']."[$k]", $skipdomain);
+									if (isset($remapLabel[$ts_id_num[0]])) {$big_data[$ts_counter+$k]['label'] = $remapLabel[$ts_id_num[0]][$k];}
 									$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
 									$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
 									$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, $i-0);
@@ -284,6 +287,7 @@
 							foreach ($v as $k=>$i) {
 								$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0]."[$k]";
 								$big_data[$ts_counter+$k]['label'] = strtr($row['full_name']."[$k]", $skipdomain);
+								if (isset($remapLabel[$ts_id_num[0]])) {$big_data[$ts_counter+$k]['label'] = $remapLabel[$ts_id_num[0]][$k];}
 								$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
 								$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
 								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, $i-0);
