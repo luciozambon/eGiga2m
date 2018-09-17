@@ -8,9 +8,9 @@
 // add other decimation method (mean, average, random...)
 // add smart periods on update
 // add regression https://github.com/Tom-Alexander/regression-js
-// us mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
+// use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.15.7';
+	var version = '1.15.8';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -50,6 +50,7 @@
 	var updateCounter = 0;
 	var updateId = false;
 	var downtimeCheck = false;
+	var visible = [];
 	var flotOptions = {
 		series: { lines: { show: true } },
 		grid: { hoverable: true, clickable: true},
@@ -69,6 +70,9 @@
 	}
 	else {
 		initConf(false);
+	}
+	if (typeof($_GET['visible']) !== 'undefined') {
+		visible = $_GET['visible'].split(';');
 	}
 	if (typeof($_GET['decimation']) !== 'undefined') {
 		decimation = $_GET['decimation'];
@@ -323,6 +327,69 @@
 		}
 	}
 
+	function getFormattedDate(timestamp) {
+		var date = new Date(timestamp);
+
+		var month = date.getMonth() + 1;
+		var day = date.getDate();
+		var hour = date.getHours();
+		var min = date.getMinutes();
+		var sec = date.getSeconds();
+
+		month = (month < 10 ? "0" : "") + month;
+		day = (day < 10 ? "0" : "") + day;
+		hour = (hour < 10 ? "0" : "") + hour;
+		min = (min < 10 ? "0" : "") + min;
+		sec = (sec < 10 ? "0" : "") + sec;
+
+		return date.getFullYear() + "-" + month + "-" + day + " " +  hour + ":" + min + ":" + sec;
+	}
+
+	function previous_period(){
+		const startT = document.getElementById('startInput').value;
+		const stopT = document.getElementById('stopInput').value;
+		if ((startT.length == 19) && (startT.indexOf('last') == -1)) {
+			const startTime = startT.substring(0,10)+'T'+startT.substring(11);
+			if ((stopT.length == 19) && (stopT.indexOf('last') == -1)) {
+				const stopTime = stopT.substring(0,10)+'T'+stopT.substring(11);
+				const period = (new Date(stopTime)).getTime() - (new Date(startTime)).getTime();
+				document.getElementById('stopInput').value = startT;
+				document.getElementById('startInput').value = getFormattedDate((new Date(startTime)).getTime() - period);
+			}
+			if (stopT.length < 2) {
+				document.getElementById('stopInput').value = startT;
+				document.getElementById('startInput').value = getFormattedDate((new Date(startTime)).getTime() - 86400000);
+			}
+		}
+		if (startT.indexOf('last') !== -1) {
+			const startArray = startT.split(' ');
+			startArray[1] = startArray[1]*2;
+			document.getElementById('startInput').value = startArray.join(' ');
+		}
+	}
+
+	function following_period(){
+		const startT = document.getElementById('startInput').value;
+		const stopT = document.getElementById('stopInput').value;
+		if ((startT.length == 19) && (startT.indexOf('last') == -1)) {
+			const startTime = startT.substring(0,10)+'T'+startT.substring(11);
+			if ((stopT.length == 19) && (stopT.indexOf('last') == -1)) {
+				const stopTime = stopT.substring(0,10)+'T'+stopT.substring(11);
+				const period = (new Date(stopTime)).getTime() - (new Date(startTime)).getTime();
+				document.getElementById('startInput').value = stopT;
+				document.getElementById('stopInput').value = getFormattedDate((new Date(stopTime)).getTime() + period);
+			}
+			if (stopT.length < 2) {
+				document.getElementById('stopInput').value = getFormattedDate((new Date(startTime)).getTime() + 86400000);
+			}
+		}
+		if (startT.indexOf('last') !== -1) {
+			const startArray = startT.split(' ');
+			startArray[1] = Math.round(startArray[1]/2);
+			document.getElementById('startInput').value = startArray.join(' ');
+		}
+	}
+
 	function evalExportDecimation(){
 		var exportDecimation = '';
 		if (document.getElementById('exportMaxmin').checked || document.getElementById('exportMean').checked || document.getElementById('exportAvg').checked) {
@@ -467,7 +534,7 @@
 		// console.log(typeof(document.getElementById('tree')));
 		if (!$('#tree').length) return;
 		var source_url = treeService;
-		let treeHeight = $(window).height()-320;
+		var treeHeight = $(window).height()-320;
 		if (treeHeight < 150) treeHeight = 150;
 		if (typeof(formula_edit) === 'undefined') $(tree).width(250).height(treeHeight);
 		if (typeof($_GET['ts']) !== 'undefined') source_url = source_url + '&ts=' + $_GET['ts'];
@@ -552,10 +619,10 @@
 
 	function switchtree() {
 		if (document.getElementById('hidetree').InnerHTML == "<img src='./img/right.png'>") {
-			document.getElementById('hidetree').InnerHTML = "<img src='./img/left.png'>";
-			$('body').find('#hidetree').html("<img src='./img/left.png'>")
+			document.getElementById('hidetree').InnerHTML = "<img src='./img/y0axis.png'>";
+			$('body').find('#hidetree').html("<img src='./img/y0axis.png'>")
 			document.getElementById('treeid').style.display = 'inline';
-			let plotWidth = $(window).width()-280;
+			var plotWidth = $(window).width()-280;
 			if (plotWidth < 300) plotWidth = 300;
 			$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
 			$("#placeholder").width(plotWidth-10).height(height+'px');
@@ -565,7 +632,7 @@
 			document.getElementById('hidetree').InnerHTML = "<img src='./img/right.png'>";
 			$('body').find('#hidetree').html("<img src='./img/right.png'>")
 			document.getElementById('treeid').style.display = 'none';
-			let plotWidth = $(window).width()-30;
+			var plotWidth = $(window).width()-30;
 			if (plotWidth < 300) plotWidth = 300;
 			$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
 			$("#placeholder").width(plotWidth-10).height(height+'px');
@@ -1067,7 +1134,7 @@
 		// adjust plot dimensions
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		if (height < 300) height = 300;
-		let plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
+		var plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
 		if (plotWidth < 300) plotWidth = 300;
 		$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
 		$("#placeholder").width(plotWidth-10).height(height+'px');
@@ -1090,17 +1157,25 @@
 				if (behind>60) alert('WARNING\nThe data has not been updated for '+behind+' seconds');
 			})
 		//}
-		// console.log('stopTime: '+stopTime.valueOf());
-		$.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
+		if (ts.length < 1) {
+			$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>WARNING: No Time Series has been requested</h4>Please select e Time Series and a time period");
+		}
+		else $.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
+			var num_rows = 0;
+			for (var dIndex=0; dIndex<data.ts.length; dIndex++) {
+				num_rows += data.ts[dIndex].num_rows;
+			}
+			if (num_rows == 0) {
+				$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>WARNING: No data available</h4>Please select e Time Series and a time period containing some data");
+			}
+			console.log('num_rows: '+num_rows);
 			const downtimeCheck = document.getElementById('downtimeCheck')? document.getElementById('downtimeCheck').checked: false;
 			if (downtimeCheck) {
 				const startTimestamp = data.ts[0].data[0].x? data.ts[0].data[0].x: data.ts[0].data[0][0];
-				// console.log('startTimestamp: '+startTimestamp);
 				const missingTS = new Array();
 				for (var dataIndex=0; dataIndex<data.ts.length; dataIndex++) {
+					num_rows += data.ts[dataIndex].num_rows
 					const lastTimestamp = data.ts[dataIndex].data[data.ts[dataIndex].data.length-1][0];
-					// console.log('lastTimestamp: '+lastTimestamp);
-					// console.log('formula: '+((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp))+ ', 10 / data.ts[dataIndex].data.length: '+(10 / data.ts[dataIndex].data.length));
 					if ((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp) > 10 / data.ts[dataIndex].data.length) missingTS.push(data.ts[dataIndex].label);
 				}
 				if (missingTS.length) alert("WARNIG\nsome data may be missing (may be server or replication downtime) for Time Series:\n"+missingTS.join(','));
@@ -1112,7 +1187,7 @@
 	function plotData(dataTs, dataEvent, start, stop){
 		var startArray = start.split(';');
 		var stopArray = stop.split(';');
-		// console.log(JSON.stringify(dataTs, null, '\t'));
+		// console.log(dataTs);
 		if (document.getElementById('show_hc').checked) {
 			hcPlot(dataTs, dataEvent, startArray, stopArray);
 			document.getElementById('pngCallback').style.display = 'none';
@@ -1275,7 +1350,7 @@
 		// console.log('curves: ',curves);
 		for (var j in curves) {
 			if (j=='clone') continue;
-			if (data) while (data[k] && data[k]['ts_id']==curves[j]['request']) {
+			if (data) while (data[k] && data[k]['ts_id'].split('[')[0]==curves[j]['request']) {
 				myPlotClass[k] = new Array();
 				const query_time = (data[k]['query_time'])? data[k]['query_time']: 0;
 				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[k]['num_rows']/query_time).toFixed(0): '';
@@ -1286,6 +1361,7 @@
 				myPlotClass[k].xAxis = data[k]['xaxis']-1;
 				myPlotClass[k].yAxis = $.isNumeric(curves[j].y)? curves[j].y-1: 0;
 				myPlotClass[k].data = data[k]['data'];
+				myPlotClass[k].visible = typeof(visible[k]) !== 'undefined'? visible[k]=='true': true;
 				myPlotClass[k].step = style=='step'? 'left': false;
 				if (xaxis_max_index < data[k]['xaxis']) xaxis_max_index = data[k]['xaxis'];
 				if (typeof(data[k]['categories']) !== 'undefined') categories[data[k]['yaxis']-1] = data[k]['categories'];
@@ -1372,8 +1448,7 @@
 								for (var j in data) {
 									if (j=='clone') continue;
 									// validate timestamp
-									if (data[j][0] === 0) continue;
-									myPlot.series[j].addPoint(data[j], true, false); 
+									if (data[j][0] > 1500000000000) myPlot.series[j].addPoint(data[j], true, false); 
 								}
 							});
 						}, updatePlot*1000);
