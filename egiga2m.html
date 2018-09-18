@@ -150,14 +150,16 @@
 		<table><tr valign='top'><td>&nbsp;</td><td id='treeid'>
 			<div id='configContainer' style="width: 250px;">
 				<div class="row">
-					<div class="input-group" style="width: 250px;">
-						<span class="input-group-addon">start</span>
-						<input type="text" class="tcal" placeholder="YYYY-MM-DD [hh:mm:ss]" id='startInput' size='18' onKeyPress='editCallback()'>
-					</div>
-					<div class="input-group" data-toggle="tooltip" title="leave empty to get up to last saved data">
-						<span class="input-group-addon">stop</span>
-						<input type="text" class="tcal" placeholder="YYYY-MM-DD [hh:mm:ss]" id='stopInput' size='18' onKeyPress='editCallback()'>
-					</div>
+					<table><tr><td><div id='previous_period' onClick='previous_period()'><img src='./img/left.png' title='shift the selected period toword the past'></div></td><td>
+						<div class="input-group">
+							<span class="input-group-addon">start</span>
+							<input type="text" class="tcal" placeholder="YYYY-MM-DD [hh:mm:ss]" id='startInput' size='18' onKeyPress='editCallback()'>
+						</div>
+						<div class="input-group" data-toggle="tooltip" title="leave empty to get up to last saved data">
+							<span class="input-group-addon">stop</span>
+							<input type="text" class="tcal" placeholder="YYYY-MM-DD [hh:mm:ss]" id='stopInput' size='18' onKeyPress='editCallback()'>
+						</div>
+					</td><td><div id='following_period' onClick='following_period()'><img src='./img/right.png' title='shift the selected period toword the present'></div></td></tr></table>
 					<!--div class="input-group" style="width: 250px;">
 						<span class="input-group-addon" onClick="openFormula();" style="width: 250px;">formulae</span><br>
 						<div class="input-group" id="formulae" style="width: 250px;"></div>
