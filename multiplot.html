@@ -22,9 +22,9 @@
 			}
 			function multiInit() {
 				var $_GET = getQueryParams(document.location.search);
-				var height = (typeof($_GET['multi_height']) !== 'undefined')? $_GET['multi_height'].split(','): [500];
+				var height = (typeof($_GET['multi_height']) !== 'undefined' && $_GET['multi_height'])? $_GET['multi_height'].split(','): [window.innerHeight/$_GET['multi_rows']];
 				var width = (typeof($_GET['multi_width']) !== 'undefined')? $_GET['multi_width'].split(','): '';
-				var multi = "<table width='100%'>";
+				var multi = "<table width='100%' height='"+window.innerHeight+"'>";
 				for (var j=0; j<$_GET['multi_rows']; j++) {
 					multi = multi + "<tr>";
 					h = (typeof(height[j]) !== 'undefined')? height[j]: height[0];
@@ -40,7 +40,7 @@
 				document.getElementById('multi').innerHTML = multi;
 			}
 		</script>
-		<div id='multi' onClick="alert('multi')"></div>
+		<div id='multi' onClick="console.log('multi')"></div>
 	</body>
 </html>
 
