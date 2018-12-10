@@ -3,6 +3,7 @@
 // ------------
 
 // todo: 
+// add configuration of global: {useUTC: false}
 // add plugin
 // add more documentation
 // add other decimation method (mean, average, random...)
@@ -10,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.15.8';
+	var version = '1.15.9';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -1355,8 +1356,8 @@
 				const query_time = (data[k]['query_time'])? data[k]['query_time']: 0;
 				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[k]['num_rows']/query_time).toFixed(0): '';
 				const title = 'Samples: '+data[k]['data'].length+(data[k]['num_rows']>data[k]['data'].length? '/'+data[k]['num_rows']: '')+((data[k]['query_time'])?', query time: '+query_time.toFixed(2)+' [s]'+samplesPerSecond:'');
-				myPlotClass[k].shortName = ((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[k]['label'].replace(/&deg;/g, "°"));
-				myPlotClass[k].name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+curves[j]['y']+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
+				myPlotClass[k].shortName = ((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"));
+				myPlotClass[k].name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
 				if (typeof($_GET['num_rows']) !== 'undefined') myPlotClass[k].name = myPlotClass[k].name+' num_rows: '+data[k]['num_rows'];
 				myPlotClass[k].xAxis = data[k]['xaxis']-1;
 				myPlotClass[k].yAxis = $.isNumeric(curves[j].y)? curves[j].y-1: 0;
@@ -1542,7 +1543,7 @@
 		}
 		chartConfig.xAxis[0]['gridLineWidth'] = 1;
 		for (var i=1; i<=yaxis_max_index; i++) {
-			chartConfig.yAxis[i-1] = {title: {text: 'Y'+i},opposite: yaxis_max_index==2 && i==2};
+			chartConfig.yAxis[i-1] = {title: {text: 'Y'+(i? i: 1)},opposite: yaxis_max_index==2 && i==2};
 			if (minYArray[i-1]) chartConfig.yAxis[i-1].min = minYArray[i-1];
 			if (maxYArray[i-1]) chartConfig.yAxis[i-1].max = maxYArray[i-1];
 			/* if (i>1 && (minYArray[i-1] || maxYArray[i-1])) {
@@ -1556,7 +1557,7 @@
 		if (typeof(window.$_GET['yLabel']) !== 'undefined') {
 			var yLabel = window.$_GET['yLabel'].split(';');
 			for (var i=1; i<=yaxis_max_index; i++) {
-				chartConfig.yAxis[i-1].title={text: (typeof(yLabel[i-1]) !== 'undefined')? yLabel[i-1]: yLabel[0]};
+				chartConfig.yAxis[i-1].title={text: (typeof(yLabel[i-1]) !== 'undefined')? yLabel[i-1]: (yLabel[0]? yLabel[0]: '')};
 			}
 		}
 		Highcharts.setOptions({
