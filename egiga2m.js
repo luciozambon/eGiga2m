@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.15.9';
+	var version = '1.15.12';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -324,6 +324,7 @@
 			document.getElementById('exportAvg').setAttribute("onClick","javascript: exportDecimation = evalExportDecimation();refreshExportLink();");
 			document.getElementById('tsLabel').setAttribute("onChange","javascript: refreshExportLink();");
 			document.getElementById('nullValue').setAttribute("onChange","javascript: refreshExportLink();");
+			document.getElementById('timestamp').setAttribute("onChange","javascript: refreshExportLink();");
 			document.getElementById("multiParam").value = plotURL+'?'+necessaryParam+optionalParam+hc+flot+event;
 		}
 	}
@@ -404,14 +405,20 @@
 	}
 
 	function refreshExportLink(){
+		document.getElementById("timestampBlock").style.display = 'inline';
+		console.log('itx',document.getElementById("exportIgor").checked);
+		if (document.getElementById("exportIgor").checked) document.getElementById("timestampBlock").style.display = 'none';
 		var exportTsLabel = document.getElementById('tsLabel').value.length? '&tsLabel='+document.getElementById('tsLabel').value: '';
 		exportTsLabel = exportTsLabel + (document.getElementById('nullValue').value.length? '&nullValue='+document.getElementById('nullValue').value: '');
+		exportTsLabel = exportTsLabel + (document.getElementById('timestamp').checked? '&timestamp': '');
 		if (exportFormat==='json'){
 			document.getElementById('exportLink').innerHTML = jsonURL;
 			document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+jsonURL+"'");
 		}
 		else {
-			document.getElementById('exportLink').innerHTML = exportURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
+			expu = exportURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
+			console.log(expu, expu.split('&').join('&amp;'));
+			document.getElementById('exportLink').innerHTML = expu.split('&').join('&amp;');
 			document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+exportURL+"&format="+exportFormat+exportBlanks+exportDecimation+exportTsLabel+"'");
 		}
 	}
@@ -1249,11 +1256,13 @@
 			if (yaxis_max_index < data[j]['yaxis']) yaxis_max_index = data[j]['yaxis'];
 		}
 		for (var i=1; i<=yaxis_max_index; i++) {
-			if (minYArray[i-1]) options.yaxis[i-1].min = minYArray[i-1];
-			if (maxYArray[i-1]) options.yaxis[i-1].max = maxYArray[i-1];
 			if (logYArray[i-1] && logYArray[i-1]=='1') {
 				options.yaxes[i-1].transform = function (v) { return v>0? Math.log(v): -23; };
 				options.yaxes[i-1].inverseTransform = function (v) { return Math.exp(v); };
+			}
+			else {
+				if (minYArray[i-1]) options.yaxis[i-1].min = minYArray[i-1];
+				if (maxYArray[i-1]) options.yaxis[i-1].max = maxYArray[i-1];
 			}
 		}
 		var localPlot = $.plot($("#placeholder"), myPlotClass, options);
@@ -1346,26 +1355,44 @@
 		for (var j in curves) {
 			if (yaxis_max_index < curves[j].y) yaxis_max_index = curves[j].y;
 		}
-		k=0;
+		var k=0;
 		for (j=0; j<events.length; j++) document.getElementById('event_'+events[j]).style.display = 'none';
+		myPlotClass = [];
 		// console.log('curves: ',curves);
 		for (var j in curves) {
 			if (j=='clone') continue;
 			if (data) while (data[k] && data[k]['ts_id'].split('[')[0]==curves[j]['request']) {
-				myPlotClass[k] = new Array();
 				const query_time = (data[k]['query_time'])? data[k]['query_time']: 0;
 				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[k]['num_rows']/query_time).toFixed(0): '';
 				const title = 'Samples: '+data[k]['data'].length+(data[k]['num_rows']>data[k]['data'].length? '/'+data[k]['num_rows']: '')+((data[k]['query_time'])?', query time: '+query_time.toFixed(2)+' [s]'+samplesPerSecond:'');
-				myPlotClass[k].shortName = ((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"));
-				myPlotClass[k].name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
-				if (typeof($_GET['num_rows']) !== 'undefined') myPlotClass[k].name = myPlotClass[k].name+' num_rows: '+data[k]['num_rows'];
-				myPlotClass[k].xAxis = data[k]['xaxis']-1;
-				myPlotClass[k].yAxis = $.isNumeric(curves[j].y)? curves[j].y-1: 0;
-				myPlotClass[k].data = data[k]['data'];
-				myPlotClass[k].visible = typeof(visible[k]) !== 'undefined'? visible[k]=='true': true;
-				myPlotClass[k].step = style=='step'? 'left': false;
+				var name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
+				if (typeof($_GET['num_rows']) !== 'undefined') name = name+' num_rows: '+data[k]['num_rows'];
+				myPlotClass.push({
+					shortName: ((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°")),
+					name: '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>',
+					xAxis: data[k]['xaxis']-1,
+					yAxis: $.isNumeric(curves[j].y)? curves[j].y-1: 0,
+					data: data[k]['data'],
+					visible: typeof(visible[k]) !== 'undefined'? visible[k]=='true': true,
+					step: style=='step'? 'left': false
+				});
 				if (xaxis_max_index < data[k]['xaxis']) xaxis_max_index = data[k]['xaxis'];
 				if (typeof(data[k]['categories']) !== 'undefined') categories[data[k]['yaxis']-1] = data[k]['categories'];
+				if (data[k]['ranges']) {
+					myPlotClass.push({
+						name: 'Range',
+						data: data[k]['ranges'],
+						type: 'arearange',
+						lineWidth: 0,
+						linkedTo: ':previous',
+						color: Highcharts.getOptions().colors[k],
+						fillOpacity: 0.5,
+						zIndex: 0,
+						marker: {
+							enabled: false
+						}
+					});
+				}
 				k++;
 			}
 			else emptyMessage = "No variable selected"
@@ -1374,17 +1401,17 @@
 		for (var j in eventData) {
 			if (j=='clone') continue;
 			if (typeof(fade_level[j]) === 'undefined') continue;
-			myPlotClass[k] = new Array();
 			if (typeof(eventData[j]['label']) === 'undefined') {
-				myPlotClass[k].name = j;
-				myPlotClass[k].showInLegend = false;
-				myPlotClass[k].xAxis = 0;
-				myPlotClass[k].yAxis = 0;
-				myPlotClass[k].data = eventData[j]['data'];
-				myPlotClass[k].type = 'scatter';
-				myPlotClass[k].step = false;
+				myPlotClass.push({
+					name: j,
+					showInLegend: false,
+					xAxis: 0,
+					yAxis: 0,
+					data: eventData[j]['data'],
+					type: 'scatter',
+					step: false
+				});
 				document.getElementById('event_'+j).style.display = 'inline';
-				k++;
 			}
 		}
 		if (typeof(window.$_GET['tsLabel']) !== 'undefined') {
@@ -1559,6 +1586,22 @@
 			for (var i=1; i<=yaxis_max_index; i++) {
 				chartConfig.yAxis[i-1].title={text: (typeof(yLabel[i-1]) !== 'undefined')? yLabel[i-1]: (yLabel[0]? yLabel[0]: '')};
 			}
+		}
+		else {
+			// detect display_unit (if any) and attach as Y label
+			ylab = [];
+			for (var j in curves) {
+				if (j=='clone') continue;
+				if (ylab[data[j]['yaxis']]) ylab[data[j]['yaxis']].push(data[j]['display_unit']); else ylab[data[j]['yaxis']] = [data[j]['display_unit']];
+				// console.log('ylab', j, data[j]['yaxis'], data[j]['display_unit']);
+			}
+			for (var k=1; k<ylab.length; k++) {
+				lab = ylab[k][0];
+				for (var m=1; m<ylab[k].length; m++) {
+					if (lab != ylab[k][m]) {lab = ylab[k].join(' - '); break;}
+				}
+				chartConfig.yAxis[k-1].title = {text: 'Y'+k+' - '+lab};
+			}				
 		}
 		Highcharts.setOptions({
 			global: {
