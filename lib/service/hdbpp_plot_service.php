@@ -14,7 +14,9 @@
 	$pretimer = !isset($_REQUEST['no_pretimer']);
 	$posttimer = !isset($_REQUEST['no_posttimer']);
 
-	$db = mysqli_connect(HOST, USERNAME, PASSWORD);
+
+	$db = mysqli_connect(HOST, USERNAME, PASSWORD, DB, PORT);
+	//$db = mysqli_connect(HOST, USERNAME, PASSWORD);
 	mysqli_select_db($db, DB);
 
 	$now = time();
@@ -99,6 +101,18 @@
 		}
 		return $time;
 	}
+	if (isset($_REQUEST['s'])) {
+		$s = explode(';', quote_smart($_REQUEST['s'], ''));
+		$ts = array();
+		foreach ($s as $search) {
+			$res = mysqli_query($db, "SELECT att_conf_id FROM att_conf WHERE att_name LIKE '%".trim($search, "'")."%' ORDER BY att_name");
+			// echo "SELECT att_conf_id FROM att_conf WHERE att_name LIKE '%{$search}%' ORDER BY att_name; ".mysqli_error($db);
+		 	while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				$ts[$row['att_conf_id']] = true;
+			}
+		}
+		if (count($ts)) $_REQUEST['ts'] = implode(';', array_keys($ts));
+	}
 
 	if (!isset($_REQUEST['start'])) die('no start (date/time) selected');
 	if (!isset($_REQUEST['ts'])) die('no ts (time series) selected');
@@ -150,6 +164,16 @@
 			list($att_conf_id,$element_index,$trash) = explode('[',trim($ts_id_num[0], ']').'[[',3);
 			if (isset($_REQUEST['debug'])) debug($att_conf_id, 'att_conf_id');
 			if (isset($_REQUEST['debug'])) debug($element_index, 'element_index');
+			$query = "SELECT * FROM att_parameter WHERE att_conf_id=$att_conf_id ".strtr($stop[$xaxis-1],array('data_time'=>'recv_time'))." ORDER BY recv_time DESC LIMIT 1";
+			// $query = "SELECT COUNT(*), display_unit FROM (SELECT DISTINCT att_conf_id, display_unit FROM att_parameter ORDER BY display_unit) AS t GROUP BY display_unit";
+			$querytime -= microtime(true);
+			$res = mysqli_query($db, $query);
+			$querytime += microtime(true);
+			if (isset($_REQUEST['debug'])) debug($query, 'query');
+			while ($unit_row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				if (isset($_REQUEST['debug'])) debug($unit_row, 'unit_row');
+				$big_data[$ts_counter]['display_unit'] = $unit_row['display_unit']=='No display unit'? '': $unit_row['display_unit'];
+			}
 			$query = "SELECT * FROM att_conf,att_conf_data_type WHERE att_conf_id=$att_conf_id AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id";
 			$querytime -= microtime(true);
 			$res = mysqli_query($db, $query);
@@ -193,7 +217,7 @@
 				if (isset($_REQUEST['debug'])) debug($sampling_every, "sampling_every");
 				$oversampled = $sampling_every>1;
 			}
-			$max = $min = array();
+			$maxv = $minv = array();
 			// if (($dim=='array') && ($big_data[$ts_counter]['yaxis']=='multi')) {
 			if ($dim=='array') {
 				$pretimer = false;
@@ -222,13 +246,14 @@
 						$buf = array();
 						$oldtime = $row['time'];
 					}
-					$buf[] = (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0;
+					$buf[] = (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0;
 				}
 			}
 			else {
 				$big_data[$ts_counter]['num_rows'] = mysqli_num_rows($res);
 				$big_data[$ts_counter]['query_time'] = $querytime - $oldquerytime;
 				$oldquerytime = $querytime;
+				$avgbuf = $avgcount = 0;
 				if (isset($_REQUEST['dump'])) {echo "<br>\nINSERT INTO $table (data_time, att_conf_id, value_r) VALUES "; $dumprow=0;}
 				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 					if (isset($_REQUEST['dump'])) {
@@ -252,7 +277,7 @@
 									$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
 									$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
 									$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
-									$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+									$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 								}
 								else {
 									foreach ($v as $k=>$i) $v[$k] = $i-0; 
@@ -260,9 +285,66 @@
 								}
 							}
 							else {
-								$big_data[$ts_counter]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+								$big_data[$ts_counter]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 								if ($io=="rw") {
-									$big_data_w[] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+									$big_data_w[] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+								}
+							}
+						}
+						else if ($decimation=='avg') {
+							$sample++;
+							if ($dim=='array') {
+								// not implemented jet
+							}
+							else {
+								if (($sample+1) % $sampling_every) {
+									if ($row['val'] !== NULL) {
+										$avgbuf += $row['val']-0;
+										$avgcount++;
+									}
+								}
+								else {
+									$big_data[$ts_counter]['data'][] = array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL);
+									if ($io=="rw") {
+										$big_data_w[$ts_counter]['data'][] = array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL);
+									}
+									$avgbuf = $avgcount = 0;
+								}
+							}
+						}
+						else if ($decimation=='avgmaxmin') {
+							$sample++;
+							if ($dim=='array') {
+								// not implemented jet
+								$k = $row['idx'];
+								$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0];
+								$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
+								$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
+								$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
+								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+							}
+							else {
+								$v = $row['val']-0;
+								if (isset($max) && !is_null($max)) {
+									if ($v>$max) $max = $v;
+									if ($v<$min) $min = $v;
+								}
+								else $max = $min = $v;
+								// if (is_null($row['val'])) $max = $min = NULL;
+								if (($sample+1) % $sampling_every) {
+									if ($row['val'] !== NULL) {
+										$avgbuf += $v;
+										$avgcount++;
+									}
+								}
+								else {
+									$big_data[$ts_counter]['ranges'][] = array($row['time']*1000, $min, $max);
+									$big_data[$ts_counter]['data'][] = array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL);
+									if ($io=="rw") {
+										$big_data_w[$ts_counter]['data'][] = array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL);
+									}
+									unset($max);
+									$avgbuf = $avgcount = 0;
 								}
 							}
 						}
@@ -273,24 +355,22 @@
 								$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
 								$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
 								$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
-								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 							}
 							else {
 								$slot = floor(($row['time']-$start_timestamp)/$slot_maxmin);
-								// if (isset($max[$slot]) and is_null($max[$slot][1])) continue;
-								if (isset($_REQUEST['debug']) and (is_null($row['val']))) debug($row, gettype($row['val']));
 								$v = $row['val']-0;
-								if (isset($max[$slot]) && !is_null($max[$slot][1])) {
-									if ($v>$max[$slot][1]) $max[$slot] = array($row['time']*1000, $v);
-									if ($v<$min[$slot][1]) $min[$slot] = array($row['time']*1000, $v);
+								if (isset($maxv[$slot]) && !is_null($maxv[$slot][1])) {
+									if ($v>$maxv[$slot][1]) $maxv[$slot] = array($row['time']*1000, $v);
+									if ($v<$minv[$slot][1]) $minv[$slot] = array($row['time']*1000, $v);
 								}
-								else $max[$slot] = $min[$slot] = array($row['time']*1000, $v);
-								if (is_null($row['val'])) $max[$slot] = $min[$slot] = array($row['time']*1000, NULL);
+								else $maxv[$slot] = $minv[$slot] = array($row['time']*1000, $v);
+								if (is_null($row['val'])) $maxv[$slot] = $minv[$slot] = array($row['time']*1000, NULL);
 							}
 						}
 					}
 					else {
-						if (isset($_REQUEST['debug'])) debug($row, 'row');
+						if (isset($_REQUEST['debug'])) {debug($row, 'row');debug($type, 'type');}
 						if ($dim=='array') {
 							if ($big_data[$ts_counter]['yaxis']=='multi') {
 								$k = $row['idx'];
@@ -298,7 +378,7 @@
 								$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
 								$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
 								$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
-								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+								$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 							}
 							else {
 								foreach ($v as $k=>$i) $v[$k] = $i-0; 
@@ -306,9 +386,9 @@
 							}
 						}
 						else {
-							$big_data[$ts_counter]['data'][] = array($row['time']*1000, (($type=='string') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
+							$big_data[$ts_counter]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 							if ($io=="rw") {
-								$big_data_w[] = array($row['time']*1000, (($type=='string') or ($row['val_w'] === NULL))? $row['val_w']: $row['val_w']-0);
+								$big_data_w[] = array($row['time']*1000, (($type=='devstring') or ($row['val_w'] === NULL))? $row['val_w']: $row['val_w']-0);
 							}
 						}
 					}
@@ -316,17 +396,17 @@
 				if (isset($_REQUEST['dump'])) {echo ";";}
 			}
 			if ($decimation=='maxmin') {
-				if (isset($_REQUEST['debug'])) debug($max, 'max');
-				foreach ($max as $slot=>$point) {
+				if (isset($_REQUEST['debug'])) debug($maxv, 'max');
+				foreach ($maxv as $slot=>$point) {
 					if (is_null($point[1])) {
 						$big_data[$ts_counter]['data'][] = $point;
 					}
-					else if ($point[0]<$min[$slot][0]) {
+					else if ($point[0]<$minv[$slot][0]) {
 						$big_data[$ts_counter]['data'][] = $point;
-						$big_data[$ts_counter]['data'][] = $min[$slot];
+						$big_data[$ts_counter]['data'][] = $minv[$slot];
 					}
 					else {
-						$big_data[$ts_counter]['data'][] = $min[$slot];
+						$big_data[$ts_counter]['data'][] = $minv[$slot];
 						$big_data[$ts_counter]['data'][] = $point;
 					}
 				}
@@ -349,10 +429,11 @@
 		}
 		$remote = $_SERVER['REMOTE_ADDR'];
 		$forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR'])? $_SERVER['HTTP_X_FORWARDED_FOR']: 0;
-		$fd = fopen(LOG_REQUEST, 'a');
-		$date = date("Y-m-d H:i:s");
-		fwrite($fd, "$date $remote $forwarded $requests query: ".round($querytime,2)."[s] fetch: ".round($fetchtime,2)."[s] #samples: $samples\n");
-		fclose($fd);
+		if ($fd = @fopen(LOG_REQUEST, 'a')) {
+			$date = date("Y-m-d H:i:s");
+			fwrite($fd, "$date $remote $forwarded $requests query: ".round($querytime,2)."[s] fetch: ".round($fetchtime,2)."[s] #samples: $samples\n");
+			fclose($fd);
+		}
 	}
 
 	//
