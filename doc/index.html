@@ -126,6 +126,20 @@ You can show the numeric data in a table.<br>
 You can select the graphic library: Flot or HighCharts (if available). Only for HighCharts you can select 
 the line style, too.
 
+<a name='decimation'></a><br><br>
+<h4>Decimation</h4>
+There are a few options in order to reduce the number of scalar samples.<br>
+<ul>
+	<li>maxmin method splits the time interval in a given number of equal subintervals, for each subinterval two samples 
+		are taken: the minimum and the maximum; this is a non linear operation, affected by aliasing; spikes are preserved</li>
+	<li>average method (avalable only on Export) consider the average of all samples in every subinterval; 
+		this is the easiest low pass filter used to reduce aliasing</li>
+	<li>median method (avalable only on Export) all samples in a subinterval are ordered and the sample in the middle is taken;
+		this is a non linear operation, affected by aliasing; spikes are removed</li>
+	<li>downsample method; one sample per subinterval is taken;
+		this is a non linear operation, affected by aliasing</li>
+</ul>
+
 <a name='events'></a><br><br>
 <h4>Events</h4>
 Events are shown as icons inside the plot area.<br>
