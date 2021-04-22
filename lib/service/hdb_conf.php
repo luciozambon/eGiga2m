@@ -1,6 +1,7 @@
 <?php
-	$skipdomain = array();
+	$skipdomain = array(); // part of naming can be hidden inserting it here
 
+	// if you don't use conf parameters remove it and keep only one series of defines
 	if (isset($_REQUEST['conf'])) {
 		if ($_REQUEST['conf']=='config_1') {
 			define("HOST", "host");
