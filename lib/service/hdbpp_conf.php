@@ -9,12 +9,14 @@
 			define("LOG_REQUEST", "../../log/hdbpp_1.log");
 		}
 	}
-  define("HOST", "hostname");
-  define("USERNAME", "username");
-  define("PASSWORD", "password");
-  define("DB", "hdbpp");
-  define("DBTYPE", "hdbpp");
-  // define("LOG_REQUEST", "../../log/hdbpp.log");
+	else {
+		  define("HOST", "hostname");
+		  define("USERNAME", "username");
+		  define("PASSWORD", "password");
+		  define("DB", "hdbpp");
+		  define("DBTYPE", "hdbpp");
+		  // define("LOG_REQUEST", "../../log/hdbpp.log");
+	}
 
   // if you wont to hide a part of your domain edit the following array
   $skipdomain = array('tango://srv-tango-srf.fcs.elettra.trieste.it:20000/'=>'');
