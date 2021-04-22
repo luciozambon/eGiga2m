@@ -15,6 +15,7 @@ function initConf(conf) {
 	// this is the default configuration, comment it if unnecessary
 	plotService = "./lib/service/hdbpp_plot_service.php?conf=";
 	treeService = "./lib/service/hdbpp_tree_service.php?conf=";
+	exportService = "./lib/service/hdb_export_service.php?conf="; // please switch hdb_export_service with hdbpp_export_service if necessary
 }
 
 /* 
