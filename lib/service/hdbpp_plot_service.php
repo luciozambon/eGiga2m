@@ -101,6 +101,9 @@
 		}
 		return $time;
 	}
+
+	$is_json_array = defined("ARRAY_TYPE") && ARRAY_TYPE=="json";
+
 	if (isset($_REQUEST['s'])) {
 		$s = explode(';', quote_smart($_REQUEST['s'], ''));
 		$ts = array();
@@ -171,8 +174,9 @@
 			$querytime += microtime(true);
 			if (isset($_REQUEST['debug'])) debug($query, 'query');
 			while ($unit_row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
-				if (isset($_REQUEST['debug'])) debug($unit_row, 'unit_row');
+				if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row'); debug(json_decode($unit_row['enum_labels']));}
 				$big_data[$ts_counter]['display_unit'] = $unit_row['display_unit']=='No display unit'? '': $unit_row['display_unit'];
+				if ($unit_row['enum_labels']!='[]') $big_data[$ts_counter]['categories'] = json_decode($unit_row['enum_labels']);
 			}
 			$query = "SELECT * FROM att_conf,att_conf_data_type WHERE att_conf_id=$att_conf_id AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id";
 			$querytime -= microtime(true);
@@ -186,7 +190,7 @@
 			if ($dim=='array') $_REQUEST['readonly'] = true;
 			if (($io=="rw") and (($element_index=='0') or (!empty($_REQUEST['readonly'])))) $io = "ro";
 			if (($io=="rw") and ($element_index=='1')) $io = "wo";
-			$col_name = $dim=='array'? "value_r AS val,idx": $data_type_result[$io];
+			$col_name = $dim=='array'? "value_r AS val".($is_json_array? ',-1 AS idx': ',idx'): $data_type_result[$io];
 			if ($type=='devstate') $big_data[$ts_counter]['categories'] = $state;
 			if ($type=='devboolean') $big_data[$ts_counter]['categories'] = $bool;
 			$big_data[$ts_counter]['ts_id'] = $att_conf_id;
@@ -200,7 +204,7 @@
 				$big_data[$ts_counter+1]['xaxis'] = $xaxis;
 				$big_data[$ts_counter+1]['yaxis'] = $ts_id_num[1];
 			}
-			$orderby = $dim=='array'? "time,idx": "data_time";
+			$orderby = $dim=='array'? "time".($is_json_array? '': ',idx'): "data_time";
 			$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
 			if (isset($_REQUEST['debug'])) debug($query);
 			// debug($query); exit(0);
@@ -241,12 +245,34 @@
 			if (($dim=='array') && ($big_data[$ts_counter]['yaxis']!='multi')) {
 				$buf = array(); $oldtime = false;
 				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+					if (isset($_REQUEST['debug']) && $is_json_array) echo "{$big_data[$ts_counter]['yaxis']} {$row['val']}\n";
 					if ($oldtime != $row['time']) {
 						if (count($buf)) $big_data[$ts_counter]['data'][] = array($oldtime*1000, $buf);
 						$buf = array();
 						$oldtime = $row['time'];
 					}
-					$buf[] = (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0;
+					if ($is_json_array) $buf = array_merge($buf, json_decode($row['val']));
+					else $buf[] = (($type=='devstring') || ($row['val'] === NULL))? $row['val']: $row['val']-0;
+				}
+			}
+			else if (($dim=='array') && $is_json_array) {
+				$buf = array(); $oldtime = false;
+				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+					if (isset($_REQUEST['debug'])) echo ($row['time'] % 864000)." {$row['val']}\n";
+					$val = empty($row['val'])? $row['val']: json_decode($row['val']);
+					if (!empty($val)) foreach ($val as $k=>$v) {
+						if ($oldtime == false) {
+							$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0];
+							$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
+							$big_data[$ts_counter+$k]['xaxis'] = $xaxis;
+							$big_data[$ts_counter+$k]['yaxis'] = $ts_id_num[1];
+							$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $v: $v-0);
+						}
+						else {
+							$big_data[$ts_counter+$k]['data'][] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $v: $v-0);
+						}
+					}
+					$oldtime = true;
 				}
 			}
 			else {
@@ -484,9 +510,9 @@
 				$res = mysqli_query($db, $query);
 				$querytime += microtime(true);
 				$fetchtime -= microtime(true);
-				$samples += mysqli_num_rows($res);
+				if ($res) $samples += mysqli_num_rows($res);
 				$sample = -1;
-				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				if ($res) while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 					if (($msg = array_search($row[$col_name], $messages)) === false) {
 						$messages[] = $row[$col_name];
 						$msg = count($messages) - 1;
