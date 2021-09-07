@@ -262,8 +262,8 @@
 				$buf = array(); $oldtime = false;
 				while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 					if (isset($_REQUEST['debug'])) echo ($row['time'] % 864000)." {$row['val']}\n";
-					$val = empty($row['val'])? $row['val']: json_decode($row['val']);
-					if (!empty($val)) foreach ($val as $k=>$v) {
+					$val = json_decode($row['val']);
+					foreach ($val as $k=>$v) {
 						if ($oldtime == false) {
 							$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0];
 							$big_data[$ts_counter+$k]['label'] = strtr($conf_row['att_name'], $skipdomain)."[$k]";
