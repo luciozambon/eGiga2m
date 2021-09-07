@@ -205,7 +205,10 @@
 				$big_data[$ts_counter+1]['yaxis'] = $ts_id_num[1];
 			}
 			$orderby = $dim=='array'? "time".($is_json_array? '': ',idx'): "data_time";
-			$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
+			$last = isset($_REQUEST['last'])? ' DESC LIMIT 1': '';
+			$thresh = isset($_REQUEST['thresh_lt'])? " AND ".strtr($data_type_result[$io], array(' AS val'=>''))." < ".($_REQUEST['thresh_lt']-0): '';
+			$thresh = isset($_REQUEST['thresh_gt'])? " AND ".strtr($data_type_result[$io], array(' AS val'=>''))." > ".($_REQUEST['thresh_gt']-0): $thresh;
+			$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$thresh ORDER BY $orderby$last";
 			if (isset($_REQUEST['debug'])) debug($query);
 			// debug($query); exit(0);
 			$querytime -= microtime(true);
