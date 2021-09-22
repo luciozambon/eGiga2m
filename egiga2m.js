@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.15.12';
+	var version = '1.15.13';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -1165,10 +1165,12 @@
 				if (behind>60) alert('WARNING\nThe data has not been updated for '+behind+' seconds');
 			})
 		//}
+		// console.log(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event);
 		if (ts.length < 1) {
 			$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>WARNING: No Time Series has been requested</h4>Please select e Time Series and a time period");
 		}
 		else $.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
+			// console.log(data);
 			var num_rows = 0;
 			for (var dIndex=0; dIndex<data.ts.length; dIndex++) {
 				num_rows += data.ts[dIndex].num_rows;
@@ -1261,6 +1263,7 @@
 				options.yaxes[i-1].inverseTransform = function (v) { return Math.exp(v); };
 			}
 			else {
+				if (!options.yaxis) options.yaxis = []; options.yaxis[i-1] = {};
 				if (minYArray[i-1]) options.yaxis[i-1].min = minYArray[i-1];
 				if (maxYArray[i-1]) options.yaxis[i-1].max = maxYArray[i-1];
 			}
