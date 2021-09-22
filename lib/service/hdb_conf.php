@@ -20,5 +20,12 @@
 			// define("LOG_REQUEST", "../../log/config_2.log");
 		}
 	}
-
+	else {
+		  define("HOST", "hostname");
+		  define("USERNAME", "username");
+		  define("PASSWORD", "password");
+		  define("DB", "hdb");
+		  define("DBTYPE", "hdb");
+		  // define("LOG_REQUEST", "../../log/hdbpp.log");
+	}
 ?>
