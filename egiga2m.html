@@ -348,12 +348,13 @@
 					<option id='decimation_downsample' value='downsample'>downsample</option>
 					</select>&nbsp;
 				</label> number of samples <input type="text" class="span3" name='decimationSamples' id='decimationSamples'><br><br>
+				&nbsp;&nbsp;<label>Select output</label> &nbsp;&nbsp;&nbsp;
+				<div class="checkbox">
+					<label> <input type="checkbox" onChange="change_chartjs()" id='show_chartjs'> Chart.js</label>
+					<label> <input type="checkbox" onChange="change_flot()" id='show_flot'> Flot</label>
+					<label id="hc_label"> <input type="checkbox" onChange="change_hc()" id='show_hc' checked> HighCharts</label>
+				</div><br><br>
 				<div id='style_output'>
-					&nbsp;&nbsp;<label>Select output</label> &nbsp;&nbsp;&nbsp;
-					<div class="checkbox">
-						<label> <input type="checkbox" onChange="change_flot()" id='show_flot'> Flot</label>
-						<label> <input type="checkbox" onChange="change_hc()" id='show_hc' checked> HighCharts</label>
-					</div><br><br>
 					&nbsp;&nbsp;<label>Style</label> &nbsp;&nbsp;&nbsp;
 					<select id='styleSet'>fill
 						<option value=''></option>
@@ -454,6 +455,11 @@
 	<script src='./lib/flot/jquery.flot.time.min.js' language='javascript' type='text/javascript'></script>
 	<script src='./lib/flot/jquery.flot.navigate.min.js' language='javascript' type='text/javascript'></script> 
 	<script src='./lib/flot/jquery.flot.canvas.min.js' language='javascript' type='text/javascript'></script> 
+
+	<!-- chart.js -->
+	<script src="./lib/chartjs/moment.min.js"></script>
+	<script src="./lib/chartjs/Chart.js"></script>
+	<script src="./lib/chartjs/utils.js"></script>
 
 	<!-- canvas2image -->
 	<script src="./lib/canvas2image/base64.js"></script>
