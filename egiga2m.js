@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.15.13';
+	var version = '1.16.0';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -92,11 +92,19 @@
 	if (document.getElementById('decimationSamples')) document.getElementById('decimationSamples').value = decimationSamples;
 	// console.log('plotService: '+plotService);
 
-	if (typeof(isHighChartsInstalled) !== 'boolean' && document.getElementById('show_flot')) {
-		document.getElementById('show_flot').checked = true;
+	if (typeof(isHighChartsInstalled) !== 'boolean') {
 		document.getElementById('show_hc').checked = false;
 		document.getElementById('show_error').checked = false;
+		document.getElementById('hc_label').style.display = 'none';
 		document.getElementById('style_output').style.display = 'none';
+	}
+	if (!isHighChartsInstalled) {
+		if (document.getElementById('show_chartjs')) {
+			document.getElementById('show_chartjs').checked = true;
+		}
+		else if (document.getElementById('show_flot')) {
+			document.getElementById('show_flot').checked = true;
+		}
 	}
 	if (typeof(formula_edit) === 'undefined') initPlot($_GET);
 	if (typeof(window.$_GET['tsLabel']) !== 'undefined') {
@@ -253,6 +261,7 @@
 		if (height.length) height = '&height='+height;
 		var hc = ''; // document.getElementById('show_hc').checked? '&show_hc=true': '';
 		var flot = document.getElementById('show_flot').checked? '&show_flot=true': '';
+		var chartjs = document.getElementById('show_chartjs').checked? '&show_chartjs=true': '';
 		var table = document.getElementById('show_table').checked? '&show_table=true': '';
 		var pathname = (typeof(location.pathname) !== 'undefined')? location.pathname: ((typeof(window.location.pathname) !== 'undefined')? window.location.pathname: ((typeof(document.location.pathname) !== 'undefined')? document.location.pathname: './egiga2m.html'));
 		path = pathname.split('/');
@@ -279,14 +288,14 @@
 		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+start+stop+ts+optionalParam;
 		// console.log('jsonTreeURL', jsonTreeURL);
 		if (typeof(myTs) !== 'undefined') {
-			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+table;
-			window.location = homeURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+table;
+			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+chartjs+table;
+			window.location = homeURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+chartjs+table;
 		}
 		else {
-			document.getElementById("plotOnly").setAttribute("onClick","javascript: location='"+plotURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
-			document.getElementById("plotOnly").innerHTML = plotURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
-			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+homeURL+'?'+necessaryParam+optionalParam+hc+flot+table+event+"'");
-			document.getElementById("plotAndControls").innerHTML = homeURL+'?'+necessaryParam+optionalParam+hc+flot+table+event;
+			document.getElementById("plotOnly").setAttribute("onClick","javascript: location='"+plotURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event+"'");
+			document.getElementById("plotOnly").innerHTML = plotURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event;
+			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+homeURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event+"'");
+			document.getElementById("plotAndControls").innerHTML = homeURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event;
 			if (document.getElementById("scratch")) {
 				document.getElementById("scratch").setAttribute("onClick","javascript: location='"+homeURL+'?'+conf+"'");
 				document.getElementById("scratch").innerHTML = homeURL+'?'+conf;
@@ -457,6 +466,7 @@
 				if (node.data.icon == './img/animation.png') {
 					document.getElementById('animationControls').style.display = 'inline';
 					frameNum = 0;
+					if (document.getElementById('show_chartjs').checked) {chartjsAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
 					if (document.getElementById('show_flot').checked) {flotAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
 					if (document.getElementById('show_hc').checked) {hcAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
 				}
@@ -512,6 +522,9 @@
 			if (typeof($_GET['show_flot']) !== 'undefined') {
 				flotAnimationTs(tsArray[0], start, stop);
 			}
+			else if (typeof($_GET['show_chartjs']) !== 'undefined') {
+				chartjsAnimationTs(tsArray[0], start, stop);
+			}
 			else {
 				hcAnimationTs(tsArray[0], start, stop);
 			}
@@ -523,9 +536,17 @@
 		if (typeof(document.getElementById('ts')) !== 'undefined') {
 			document.getElementById('ts').value = ts;
 		}
-		if (typeof($_GET['show_flot']) !== 'undefined') {
+		if (typeof($_GET['show_chartjs']) !== 'undefined') {
+			if (document.getElementById('show_chartjs')) {
+				document.getElementById('show_chartjs').checked = true;
+				document.getElementById('show_flot').checked = false;
+				document.getElementById('show_hc').checked = false;
+			}
+		}
+		else if (typeof($_GET['show_flot']) !== 'undefined') {
 			if (document.getElementById('show_flot')) {
 				document.getElementById('show_flot').checked = true;
+				document.getElementById('show_chartjs').checked = false;
 				document.getElementById('show_hc').checked = false;
 			}
 		}
@@ -655,6 +676,10 @@
 			myPlot.resize();
 			myPlot.draw();
 		}
+		if (document.getElementById('show_chartjs') && document.getElementById('show_chartjs').checked) {
+			myPlot.resize();
+			myPlot.draw();
+		}
 		else {
 			myPlot.reflow();
 		}
@@ -718,13 +743,27 @@
 		});
 	}
 
+	function change_chartjs() {
+		if (document.getElementById('show_chartjs').checked) {
+			document.getElementById('show_hc').checked = false;
+			document.getElementById('show_flot').checked = false;
+		}
+		if (document.getElementById('style_item')) document.getElementById('style_item').style.display = document.getElementById('show_hc').checked? 'inline': 'none';
+	}
+
 	function change_flot() {
-		if (document.getElementById('show_flot').checked) document.getElementById('show_hc').checked = false;
+		if (document.getElementById('show_flot').checked) {
+			document.getElementById('show_hc').checked = false;
+			document.getElementById('show_chartjs').checked = false;
+		}
 		if (document.getElementById('style_item')) document.getElementById('style_item').style.display = document.getElementById('show_hc').checked? 'inline': 'none';
 	}
 
 	function change_hc() {
-		if (document.getElementById('show_hc').checked) document.getElementById('show_flot').checked = false;
+		if (document.getElementById('show_hc').checked) {
+			document.getElementById('show_flot').checked = false;
+			document.getElementById('show_chartjs').checked = false;
+		}
 		document.getElementById('style_item').style.display = document.getElementById('show_hc').checked? 'inline': 'none';
 	}
 
@@ -860,6 +899,37 @@
 						legend: { position: 'nw' },
 						canvas: true
 					};
+					var localPlot = $.plot($("#placeholder"), myPlotClass, options);
+					myPlot = localPlot;
+				}
+				else if (document.getElementById('show_chartjs') && document.getElementById('show_chartjs').checked) {
+					var options = {
+						scales: {
+							xAxes: [{
+								type: "time",
+								time: {
+									format: timeFormat,
+									// round: 'month',
+									tooltipFormat: timeFormat,// 'll HH:mm'
+								},
+								scaleLabel: {
+									display: true,
+									labelString: 'Date'
+								},
+								ticks: {
+									callback: function(value, index, values) {
+										return index==values.length-1? '': moment(values[index]? values[index]['_i']: 0).format('DD/MM/Y');
+									}
+								}
+							}, ],
+							yAxes: [{
+								scaleLabel: {
+									display: true,
+									labelString: 'value'
+								}
+							}]
+						},
+					};				
 					var localPlot = $.plot($("#placeholder"), myPlotClass, options);
 					myPlot = localPlot;
 				}
@@ -1202,6 +1272,10 @@
 			hcPlot(dataTs, dataEvent, startArray, stopArray);
 			document.getElementById('pngCallback').style.display = 'none';
 		}
+		else if (document.getElementById('show_chartjs').checked) {
+			chartjsPlot(dataTs, dataEvent, startArray, stopArray);
+			document.getElementById('pngCallback').style.display = 'inline';
+		}
 		else if (document.getElementById('show_flot').checked) {
 			flotPlot(dataTs, dataEvent, startArray, stopArray);
 			document.getElementById('pngCallback').style.display = 'inline';
@@ -1227,11 +1301,97 @@
 		}
 	}
 
+// ------------
+// Chart.js plot
+// ------------
+	function chartjsPlot(data, dataEvent, start, stop) {
+		const colors = [window.chartColors.blue, window.chartColors.red, window.chartColors.green, window.chartColors.orange, window.chartColors.magenta, window.chartColors.brown];
+		var minYArray = (document.getElementById('minY') && document.getElementById('minY').value.length)? document.getElementById('minY').value.split(';'): [];
+		var maxYArray = (document.getElementById('maxY') && document.getElementById('maxY').value.length)? document.getElementById('maxY').value.split(';'): [];
+		var logYArray = (document.getElementById('logY') && document.getElementById('logY').value.length)? document.getElementById('logY').value.split(';'): [];
+		var timeFormat = 'DD/MM/Y HH:mm:ss';
+		var color = Chart.helpers.color;
+		var options = {
+			legend: {
+				position: 'bottom'
+			},
+			radius: 20,
+			scales: {
+				xAxes: [{
+					type: "time",
+					time: {
+						format: timeFormat,
+						tooltipFormat: timeFormat,
+					},
+					scaleLabel: {
+						display: true,
+						labelString: 'Date'
+					},
+					ticks: {
+						callback: function(value, index, values) {
+							return index==values.length-1? '': moment(values[index]? values[index]['_i']: 0).format('DD/MM/Y');
+						}
+					}
+				}],
+				yAxes: [{
+					id: 'y1',
+					type: 'linear',
+					position: 'left',
+					ticks: {}
+				}, {
+					id: 'y2',
+					type: 'linear',
+					position: 'right',
+					grid: false,
+					ticks: {}
+				}],
+			},
+		};
+		if (minYArray[0]!="") options.scales.yAxes[0].ticks.min = minYArray[0]-0;
+		if (maxYArray[0]!="") options.scales.yAxes[0].ticks.max = maxYArray[0]-0;
+		if (logYArray[0]!="0") options.scales.yAxes[0].type = 'logarithmic';
+		if (minYArray[1]!="") options.scales.yAxes[1].ticks.min = minYArray[1]-0;
+		if (maxYArray[1]!="") options.scales.yAxes[1].ticks.max = maxYArray[1]-0;
+		if (logYArray[1]!="0") options.scales.yAxes[1].type = 'logarithmic';
+		var datasets = [];
+		var y2 = false;
+		for (var j=0; j<data.length; j++) {
+			var d = []
+			for (var i=0; i<data[j].data.length; i++) d.push({x: data[j].data[i][0],y: data[j].data[i][1]});
+			if (data[j].yaxis=='2') y2 = true;
+			datasets.push({
+				label: data[j].label,
+				backgroundColor: color(colors[j % colors.length]).alpha(0.5).rgbString(),
+				borderColor: colors[j % colors.length],
+				fill: false,
+				pointStyle: 'line',
+				data: d,
+				yAxisID: 'y'+data[j].yaxis,
+			});
+		}
+		if (!y2) options.scales.yAxes.pop();
+		var config = {
+			type: 'line',
+			data: {
+				datasets: datasets,
+			},
+			options: options,
+		};
+		$("#canvas").show();
+		$("#placeholder").hide();
+
+		var ctx = document.getElementById("canvas").getContext("2d");
+		// console.log('data', data, 'config', config, minYArray, maxYArray, logYArray);
+		window.myLine = new Chart(ctx, config);
+	}
+
 
 // ------------
 // Flot plot
 // ------------
 	function flotPlot(data, dataEvent, start, stop){
+		$("#canvas").hide();
+		$("#placeholder").show();
 		var options = {
 			series: { lines: { show: true } },
 			grid: { hoverable: true, clickable: true},
@@ -1341,6 +1501,8 @@
 // ------------
 	var printing = false;
 	function hcPlot(data, eventData, startArray, stopArray){
+		$("#canvas").hide();
+		$("#placeholder").show();
 		// console.log('data: ',data);
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
@@ -1867,5 +2029,3 @@
 			surfacePlot.draw(data, options, basicPlotOptions, glOptions);
 		})
 	}
-
-// http://closure-compiler.appspot.com
