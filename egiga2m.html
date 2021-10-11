@@ -147,7 +147,7 @@
 	</nav>
 
 	<div class="container" style='width: 100%'>
-		<table><tr valign='top'><td>&nbsp;</td><td id='treeid'>
+		<table style="width: 100%;"><tr valign='top'><td>&nbsp;</td><td id='treeid'>
 			<div id='configContainer' style="width: 250px;">
 				<div class="row">
 					<table><tr><td><div id='previous_period' onClick='previous_period()'><img src='./img/left.png' title='shift the selected period toword the past'></div></td><td>
@@ -198,12 +198,11 @@
 					</div>
 				</div>
 			</div>
-			</td><td style="width: 98%;">
+			</td><td style="width: 98%;"><canvas id="canvas" style='display: none'></canvas>
 			<div id='plotContainer'>
 			 <table><tr valign='top'><td><div id='hidetree' onClick='switchtree()' style = 'display:none'><img src='./img/left.png'></div></td><td>
 				<table><tr><td>
 				<div id='mybackground' style='float:left;border-width:10;background-color: white;width:1110px;height:810px;'>
-					<canvas id="canvas" style='display: none'></canvas>
 					<div id='placeholder' style='width:1100px;height:800px;border-style:dashed;border-width:thin;border-color:black;'>
 						&nbsp;&nbsp;&nbsp;<span style="cursor:pointer;color:#909090;font-size:20px;fill:#909090;">Drop here a CSV file</span>
 					</div>
