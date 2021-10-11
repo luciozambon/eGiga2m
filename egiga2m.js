@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.16.0';
+	var version = '1.16.1';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -1274,7 +1274,7 @@
 		}
 		else if (document.getElementById('show_chartjs').checked) {
 			chartjsPlot(dataTs, dataEvent, startArray, stopArray);
-			document.getElementById('pngCallback').style.display = 'inline';
+			document.getElementById('pngCallback').style.display = 'none';
 		}
 		else if (document.getElementById('show_flot').checked) {
 			flotPlot(dataTs, dataEvent, startArray, stopArray);
@@ -1305,6 +1305,7 @@
 // Chart.js plot
 // ------------
 	function chartjsPlot(data, dataEvent, start, stop) {
+		if (window.myLine) window.myLine.destroy();
 		const colors = [window.chartColors.blue, window.chartColors.red, window.chartColors.green, window.chartColors.orange, window.chartColors.magenta, window.chartColors.brown];
 		var minYArray = (document.getElementById('minY') && document.getElementById('minY').value.length)? document.getElementById('minY').value.split(';'): [];
 		var maxYArray = (document.getElementById('maxY') && document.getElementById('maxY').value.length)? document.getElementById('maxY').value.split(';'): [];
