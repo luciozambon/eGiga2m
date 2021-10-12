@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.16.2';
+	var version = '1.16.3';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -1306,10 +1306,14 @@
 // ------------
 	function chartjsPlot(data, dataEvent, start, stop) {
 		if (window.myLine) window.myLine.destroy();
+		var style = 'step';
+		if (document.getElementById('style') && document.getElementById('style').value.length) {
+			style = document.getElementById('style').value;
+		}
 		const colors = [window.chartColors.blue, window.chartColors.red, window.chartColors.green, window.chartColors.orange, window.chartColors.magenta, window.chartColors.brown];
-		var minYArray = (document.getElementById('minY') && document.getElementById('minY').value.length)? document.getElementById('minY').value.split(';'): [];
-		var maxYArray = (document.getElementById('maxY') && document.getElementById('maxY').value.length)? document.getElementById('maxY').value.split(';'): [];
-		var logYArray = (document.getElementById('logY') && document.getElementById('logY').value.length)? document.getElementById('logY').value.split(';'): [];
+		var minYArray = (document.getElementById('minY') && document.getElementById('minY').value.length)? document.getElementById('minY').value.split(';'): [''];
+		var maxYArray = (document.getElementById('maxY') && document.getElementById('maxY').value.length)? document.getElementById('maxY').value.split(';'): [''];
+		var logYArray = (document.getElementById('logY') && document.getElementById('logY').value.length)? document.getElementById('logY').value.split(';'): ['0'];
 		var timeFormat = 'DD/MM/Y HH:mm:ss';
 		var color = Chart.helpers.color;
 		var options = {
@@ -1364,8 +1368,12 @@
 				label: data[j].label,
 				backgroundColor: color(colors[j % colors.length]).alpha(0.5).rgbString(),
 				borderColor: colors[j % colors.length],
-				fill: false,
-				pointStyle: 'line',
+				fill: style.indexOf('area')>-1,
+				pointStyle: style=='scatter'? 'circle': 'line',
+				showLine: style!='scatter',
+				lineTension: (style=='line' || style=='area')? 0: 0.8,
+				cubicInterpolationMode: 'monotone',
+				steppedLine: style=='step',
 				data: d,
 				yAxisID: 'y'+data[j].yaxis,
 			});
