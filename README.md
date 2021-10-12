@@ -10,7 +10,7 @@ Each time series is identified by a unique name and by an ID. Time series names 
 
 Users can configure a wide range of parameters. All settings are interfaced through URI parametrs. This allows to send unique links to graph or exported files and eGiga2m can be included or used by external resources.
 
-Two graphic library are supported: Flot Charts has MIT licence; Highcharts offers more features.
+Three graphic library are supported: Chart.js has MIT licence; Flot Charts (legacy); Highcharts has a double licence.
 
 Time series are supposed to be saved on event base, so the value is assured to be within an (hopefully) tiny interval around the last saved value unless a new value is saved. that's why the default line style is 'step'.
 
