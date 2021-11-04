@@ -52,8 +52,9 @@ in a <a href='https://en.wikipedia.org/wiki/Comma-separated_values'>CSV</a> file
 Each time series is identified by a unique name and by an ID. Time series names are displayed in a hierarchical tree.<br>
 Users can configure a wide range of parameters. All settings are interfaced through URI parameters.
 This allows to send unique links to graph or exported files and eGiga2m can be included or used by external resources.<br>
-Two graphic library are supported: <a href='http://www.flotcharts.org/'>Flot Charts</a> has MIT license; 
-<a href='http://www.highcharts.com/'>Highcharts</a> offers more features.<br>
+Three graphic library are supported: <a href='https://www.chartjs.org/'>ChartJS</a> has MIT license; 
+<a href='https://www.flotcharts.org/'>Flot Charts</a> is considered legacy and will be deprecated; 
+<a href='https://www.highcharts.com/'>Highcharts</a> offers more features with a double licence.<br>
 Time series are supposed to be saved on event base, so the value is assured to be within an (hopefully) tiny interval around
 the last saved value unless a new value is saved. that's why the default line style is 'step'.<br>
 
