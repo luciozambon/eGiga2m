@@ -42,7 +42,7 @@
 	</nav>
 
 	<div class="container" style='width: 100%'>
-
+		
 <h3>Introduction</h3>
 
 eGiga2m is a web graphic data viewer.<br>
@@ -52,18 +52,17 @@ in a <a href='https://en.wikipedia.org/wiki/Comma-separated_values'>CSV</a> file
 Each time series is identified by a unique name and by an ID. Time series names are displayed in a hierarchical tree.<br>
 Users can configure a wide range of parameters. All settings are interfaced through URI parameters.
 This allows to send unique links to graph or exported files and eGiga2m can be included or used by external resources.<br>
-Three graphic library are supported: <a href='https://www.chartjs.org/'>ChartJS</a> has MIT license; 
+Three graphic libraries are supported: <a href='https://www.chartjs.org/'>ChartJS</a> has MIT license; 
 <a href='https://www.flotcharts.org/'>Flot Charts</a> is considered legacy and will be deprecated; 
 <a href='https://www.highcharts.com/'>Highcharts</a> offers more features with a double licence.<br>
 Time series are supposed to be saved on event base, so the value is assured to be within an (hopefully) tiny interval around
 the last saved value unless a new value is saved. that's why the default line style is 'step'.<br>
 
-
 <h3>Quick start</h3>
 
 Users can select a time interval and one or more time series.<br>
 A time interval span from a start point to a stop point. The stop point is optional, if not specified the default is now.<br>
-Both start and stop point may be a fix date-time or a relative interval (for example last 7 days).<br>
+Both start and stop points may be a fixed date-time or a relative interval (for example last 7 days, also seconds, minutes, hours, months, years are supported).<br>
 Time series are presented in a tree structure. This tree can be navigated till the leaf level.<br> 
 Clicking on a leaf a time series will be plotted on the left axis <img src='../img/y1axis.png'>.<br>
 Clicking again on the same time series will switch the plot to the right axis <img src='../img/y2axis.png'>.<br>
@@ -85,7 +84,7 @@ click on the back button "&lt;" near the "show" button.<br>
 The "restart from scratch" link deselects all the options that has been selected.<br>
 The "multiplot" form splits the window into two or more sub-windows. Each sub-window can be split again in a recursive
 manner. Once split, each sub-window will show the same plot shown by the original (sub)window. By clicking over a
-sub-window plot, the controls allow to change the plot.
+sub-window plot, the controls allow you to change the plot.
 		
 <a name='export'></a><br><br>
 <h4>Export</h4>
@@ -104,20 +103,20 @@ A <span style="color: red">CSV</span> file includes all time series in a single 
 almost any limitation (only semicolon is forbidden). Data is sent to the output file chunk by chunk as extracted from the database.<br>
 
 A <span style="color: red">MAT</span> file includes each time series in a separate variable. The <a href='https://github.com/luciozambon/php2mat'>php2mat</a> library has been included
-which implements the <a href='http://www.mathworks.com/help/pdf_doc/matlab/matfile_format.pdf'>level 5 MAT format</a> by MATLAB<sup>&#174;</sup>. This format impose some restrictions
+which implements the <a href='http://www.mathworks.com/help/pdf_doc/matlab/matfile_format.pdf'>level 5 MAT format</a> by MATLAB<sup>&#174;</sup>. This format imposes some restrictions
 on the Time series names in regards to length and <a href='http://it.mathworks.com/help/matlab/matlab_prog/variable-names.html'>admitted characters</a>. In some cases 
 the "TS Label" field may be useful. Data is sent to the output file chunk by chunk as extracted from the database.<br>
 
 An <span style="color: red">XLS</span> file includes all time series in a single table, the first row specifies the Time series names without
 almost any limitation (only semicolon is forbidden). The <a href='https://github.com/PHPOffice/PHPExcel'>PHPExcel</a> library has been included.
 It is compatible with most versions of Microsoft<sup>&#169;</sup> Excel<sup>&#169;</sup>, OpenOffice&#8482; Calc&#8482; and LibreOffice<sup>&#169;</sup> Calc<sup>&#169;</sup>. 
-If your version isn't compatible, please use CSV format. All data is loaded in memory and than is saved in a file. Memory limits may prevent the download of large files.<br>
+If your version isn't compatible, please use CSV format. All data is loaded in memory and then is saved in a file. Memory limits may prevent the download of large files.<br>
 
 An <span style="color: red">ITX</span> file includes all time series in a single table according to IGOR Pro<sup>&#169;</sup> specifications.This format impose some restrictions
 on the Time series names in regards to length and <a href='http://www.wavemetrics.net/doc/igorman/II-07%20Num%20Str%20Variables.pdf'>admitted characters</a>. In some cases 
 the "TS Label" field may be useful. Data is sent to the output file chunk by chunk as extracted from the database.<br><br>
 
-If you are using Flot you can export graphs only in PNG format clicking the "export to png" button near the "show" button.
+If you are using Flot you can export graphs only in PNG format by clicking the "export to png" button near the "show" button.
 If you are using HighCharts you can export in PDF, PNG, JPG and SVG from the menu on the upper left corner of the plot.
 
 <a name='config'></a><br><br>
@@ -133,9 +132,9 @@ There are a few options in order to reduce the number of scalar samples.<br>
 <ul>
 	<li>maxmin method splits the time interval in a given number of equal subintervals, for each subinterval two samples 
 		are taken: the minimum and the maximum; this is a non linear operation, affected by aliasing; spikes are preserved</li>
-	<li>average method (avalable only on Export) consider the average of all samples in every subinterval; 
+	<li>average method (available only on Export) consider the average of all samples in every subinterval; 
 		this is the easiest low pass filter used to reduce aliasing</li>
-	<li>median method (avalable only on Export) all samples in a subinterval are ordered and the sample in the middle is taken;
+	<li>median method (available only on Export) all samples in a subinterval are ordered and the sample in the middle is taken;
 		this is a non linear operation, affected by aliasing; spikes are removed</li>
 	<li>downsample method; one sample per subinterval is taken;
 		this is a non linear operation, affected by aliasing</li>
@@ -144,7 +143,7 @@ There are a few options in order to reduce the number of scalar samples.<br>
 <a name='events'></a><br><br>
 <h4>Events</h4>
 Events are shown as icons inside the plot area.<br>
-Events are organized in sets, each set normally has it's own icon.<br>
+Events are organized in sets, each set normally has its own icon.<br>
 For example any of these set of events can be supported: errors (identified by <img src='../img/event_error.png'>), alarms 
 (identified by <img src='../img/event_alarm.png'>), commands (identified by <img src='../img/event_command.png'>) 
 and buttons (identified by <img src='../img/event_button.png'>).<br>
@@ -153,7 +152,7 @@ Errors are the only set of events recognized by eGiga2m. The label of the time s
 Errors are shown by default, all other events must be checked in the "Config" modal.<br>
 Events can be hidden/shown by clicking on the legend.<br>
 A filter can be attached to any event. Only events whose description will fully match the filter string will be shown.
-Case sensitiveness of filter match is dependent on database and web service settings, normally it is case unsensitive. 
+Case sensitiveness of filter match is dependent on database and web service settings, normally it is case insensitive. 
 If you want to match only a substring of description you can use wildcards (*). E.g. *voltage*.<br>
 Events are available only for Highcharts installations.
 
@@ -174,7 +173,7 @@ otherwise all previously selected time series will be cleared from the tree.<br>
 Also the plot area can receive a drop, but in this case it should be a CSV file containing data in the same 
 format of the CSV file exported by eGiga2m. 
 I.E. first line contain the label "time" and the list of all the time series name; all the following lines 
-must contain date time in format YYYY-MM-DD hh:mm:ss or timestamp an the value of all time series (empty if undefined).<br>  
+must contain date time in format YYYY-MM-DD hh:mm:ss or timestamp an the value of all time series (empty if undefined).<br>  
 
 
 <h3>Arrays</h3>
@@ -192,8 +191,8 @@ Only one array time series can be displayed at once. If necessary use the "multi
 
 <h3>Web services</h3>
 
-eGiga2m core is composed by a monolithic JavaScript file and a few HTML files, a few JavaScript libraries 
-are included. It is interfaced to 3 web services trough a <a href='https://en.wikipedia.org/wiki/JSON'>JSON</a> 
+eGiga2m core is composed of a monolithic JavaScript file and a few HTML files, a few JavaScript libraries 
+are included. It is interfaced to 3 web services through a <a href='https://en.wikipedia.org/wiki/JSON'>JSON</a> 
 interface.<br>
 The first web service is in charge of populating the hierarchical tree of time series names. The tree is loaded 
 dynamically, so a number of call are necessary.<br>
