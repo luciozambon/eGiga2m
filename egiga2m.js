@@ -561,6 +561,15 @@
 
 	function initTree($_GET) {
 		// console.log(typeof(document.getElementById('tree')));
+		$.get(treeService, function(data) {
+			if (data.length==0) {
+				var url = treeService.indexOf('?')>=0? treeService+'&host': treeService+'?host';
+				$.get(url, function(d) {
+					var t = new Date($.now());
+					$("body").html("<div style='margin-left: 10px;margin-top: -80px;'><h1>ERROR</h1>Cannot extract data from<br>"+d+"<br>or<br>"+treeService+'<br>'+t+'<br><a href="'+$(location).attr('href')+'">reload page</a></div>');
+				});
+			}
+		});
 		if (!$('#tree').length) return;
 		var source_url = treeService;
 		var treeHeight = $(window).height()-320;
