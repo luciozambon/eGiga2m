@@ -49,6 +49,7 @@ eGiga2m is a web graphic data viewer.<br>
 Data is supposed to be organized as a set of <a href='https://en.wikipedia.org/wiki/Unevenly_spaced_time_series'>unevenly spaced time series</a>.<br>
 Time series are taken from a web service which typically extracts data from a structured database or are stored
 in a <a href='https://en.wikipedia.org/wiki/Comma-separated_values'>CSV</a> file drag-and-dropped on the plot area.<br>
+Data from CSV files can be stored in a repository with <a href='https://docs.timescale.com/timescaledb/latest/how-to-guides/continuous-aggregates/'>continuous aggregates</a>.<br>
 Each time series is identified by a unique name and by an ID. Time series names are displayed in a hierarchical tree.<br>
 Users can configure a wide range of parameters. All settings are interfaced through URI parameters.
 This allows to send unique links to graph or exported files and eGiga2m can be included or used by external resources.<br>
@@ -192,7 +193,8 @@ Only one array time series can be displayed at once. If necessary use the "multi
 <h3>Time series analysis</h3>
 		
 From the "analysis" menu a few time series analysis tools are available, all of them should be considered as experimental, forecast in particular.<br>
-Those tools are available also as an indipendent service.
+Those tools are available also as an indipendent service.<br>
+Forecast requires a special setup, instructions are <a href='https://docs.timescale.com/timescaledb/latest/tutorials/time-series-forecast/#time-series-forecasting'>here</a><br>
 
 <hr>
 
