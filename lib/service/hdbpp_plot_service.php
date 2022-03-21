@@ -534,7 +534,6 @@
 	}
 
 
-
 	//
 	// extract ALARMs
 	//
@@ -596,7 +595,9 @@
 		$big_data['button']['data'][3] = array('x'=>(strtotime($start[0]) + ($stop_timestamp[0] - strtotime($start[0])) / 1.05) * 1000, 'y'=>$y, 'message'=>1,'marker'=>array('symbol'=>"url($host/img/event_button.png)"));
 	}
 	*/
+
 	if (isset($_REQUEST['dump'])) {exit(0);}
-	header("Content-Type: application/json");
-	echo json_encode($big_data);
+	if (isset($_REQUEST['debug'])) {debug($big_data, 'big_data');}
+	if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
+	echo json_encode($big_data, JSON_INVALID_UTF8_IGNORE);
 ?>
