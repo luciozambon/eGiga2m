@@ -599,7 +599,7 @@
 			}
 			else {
 				for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
-				emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: $row['time']));
+				emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: (isset($_REQUEST['timestamp'])? strtotime($row['time']): $row['time'])));
 				for ($i=0; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
 				// if (isset($_REQUEST['debug'])) {debug($row, 'row'); debug(is_null($row['val'])); debug(is_numeric($row['val']));}
 				emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
@@ -885,7 +885,6 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 	if ($csv) {
 		header("Content-Type: application/csv");
 		header("Content-Disposition: attachment; filename=\"$filename\"");
-		if (isset($_REQUEST['debug'])) {debug($data);}
 		echo "time";
 		foreach ($csv_header as $h) {
 			echo $separator.$h;
@@ -895,7 +894,8 @@ X SetScale x 0,1, "V", unit2; SetScale y 0,0, "A", unit2
 		$t_index = -1;
 		foreach ($data as $time=>$v) {
 			$t_index++;
-			echo $time;
+			echo (isset($_REQUEST['timestamp'])? strtotime($time): $time);
+			if (isset($_REQUEST['debug'])) exit();
 			foreach ($v as $i=>$val) {
 				$val = trim($val);
 				if (isset($_REQUEST['zoh'])) {if (empty($val)) $val = $old_data[$i]; else $old_data[$i] = $val;}
