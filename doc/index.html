@@ -124,7 +124,9 @@ If you are using HighCharts you can export in PDF, PNG, JPG and SVG from the men
 <h4>Config</h4>
 This <i>modal</i> is used to configure maximum, minimum and logarithmic scale for Y1 and Y2 axis.<br>
 You can show the numeric data in a table.<br>
-You can select the graphic library: Flot or HighCharts (if available). Only for HighCharts you can select 
+Decimation and the maximum number of samples can be chosen.
+If the number of samples is 0 than all available samples are rendered (it is equivalent to the value 'none' of decimation).<br> 
+You can select the graphic library: ChartJS, Flot or HighCharts (if available). Only for ChartJS and HighCharts you can select 
 the line style, too.
 
 <a name='decimation'></a><br><br>
@@ -174,7 +176,7 @@ otherwise all previously selected time series will be cleared from the tree.<br>
 Also the plot area can receive a drop, but in this case it should be a CSV file containing data in the same 
 format of the CSV file exported by eGiga2m. 
 I.E. first line contain the label "time" and the list of all the time series name; all the following lines 
-must contain date time in format YYYY-MM-DD hh:mm:ss or timestamp an the value of all time series (empty if undefined).<br>  
+must contain date time in format YYYY-MM-DD hh:mm:ss or timestamp an the value of all time series (empty if undefined).<br>  
 
 
 <h3>Arrays</h3>
@@ -188,6 +190,11 @@ scalar time series <img src='../img/multi.png'>.<br>
 Clicking the fourth time on the same array time series will remove it from the plot <img src='../img/y0axis.png'>.<br>
 Only one array time series can be displayed at once. If necessary use the "multiplot" feature.<br>
 
+
+<h3>Architecture</h3> 
+		
+<img src='../img/architecture.png'><br> <br>
+<a href='../log/display.php' target='_blank'>Logs</a><br> <br> 
 
 <a name='analysis'></a><br><br>
 <h3>Time series analysis</h3>
@@ -237,4 +244,5 @@ The third web service is used to export data in some standard file formats.
 	<script src="../lib/bootstrap/docs.js"></script>
 
 </body></html>
+
 
