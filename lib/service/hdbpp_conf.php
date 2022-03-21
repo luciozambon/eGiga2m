@@ -20,6 +20,7 @@
 
   // if you wont to hide a part of your domain edit the following array
   $skipdomain = array('tango://srv-tango-srf.fcs.elettra.trieste.it:20000/'=>'');
+  define("CSVREPO", 'https://myserver/csvrepo.php');
 
   define("ALARM_HOST", "host");
   define("ALARM_USER", "username");
