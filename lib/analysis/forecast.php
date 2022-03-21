@@ -19,7 +19,7 @@
 
 	$parameters = array(
 		'title'=>'Forecast',
-		'description'=>'Forecast from <a href="https://www.rdocumentation.org/packages/forecast/versions/8.16/topics/forecast">R ARIMA package</a>; apply to no more than one time series at a time<br>user can provide seasonal frequency<br>only a few parameters are implemented, not supported by Flot',
+		'description'=>'Forecast from <a href="https://www.rdocumentation.org/packages/forecast/versions/8.16/topics/forecast">R ARIMA package</a>; apply to no more than one time series at a time<br>user can provide seasonal frequency<br>only a few parameters are implemented, not supported by Flot<br><span style="color: red;"><b>WARNING</b> this tool is experimental and forecasts can be inaccurate or even misleading</span><br>',
 		'period'=>array('default'=>3600,'type'=>'number','description'=>'seconds between two consecutive samples extracted by interpolator'),
 		'samples'=>array('default'=>100,'type'=>'number','description'=>'number of forecasted samples, better no more than 100'),
 		'frequency'=>array('default'=>0,'type'=>'number','description'=>'seasonal frequency as number of samples, 0 = no seasonality'),
