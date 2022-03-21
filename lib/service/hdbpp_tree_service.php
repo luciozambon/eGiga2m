@@ -1,6 +1,7 @@
 <?php
 
 	include './hdbpp_conf.php';
+	if (isset($_REQUEST['host'])) {die(HOST);}
 
 	$buffer_filename = 'tree_root.json';
 	$buffer_threshold = 3600;
@@ -8,8 +9,10 @@
 	$fancyConfig = array();
 	$rowArray = array();
 
-	$db = mysqli_connect(HOST, USERNAME, PASSWORD);
-	mysqli_select_db($db, DB);
+	$db = mysqli_connect(HOST, USERNAME, PASSWORD, DB);
+	if (isset($_REQUEST['debug'])) {mysqli_connect_error();}
+	// mysqli_select_db($db, DB);
+	// if (isset($_REQUEST['debug'])) {mysqli_connect_error();}
 
 	// ----------------------------------------------------------------
 	// Quote variable to make safe
@@ -151,34 +154,89 @@
 	}
 	else if (isset($_REQUEST['ts']) and (strlen($_REQUEST['ts'])>0)) {
 		$ts = explode(';', quote_smart($_REQUEST['ts'], ''));
-		$ids = $tsArray = array();
-		$tree_base = array();
+		$ids = $tsArray = $tree_base = $csv = $hdb = array();
+
 		foreach ($ts as $s) {
-			// skip formulae (which contain character '$')
-			if (strpos($s, '$')!==false) continue;
-			$id = explode(',', $s);
-			$y_index = isset($id[2])? $id[2]: (isset($id[1])? $id[1]: 1);
-			$att_conf_id = explode('[', $id[0]); 
-			// $res = mysqli_query($db, "SELECT att_name FROM att_conf WHERE att_conf_id={$att_conf_id[0]]");
-			$res = mysqli_query($db, "SELECT att_name FROM att_conf WHERE att_conf_id={$att_conf_id[0]}");
-			$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
-			$tok_base = '';
-			$nameArray = explode('/', strtr($row['att_name'], $skipdomain));
-			foreach ($nameArray as $tok) {
-				$tok_base .= ($tok_base==''? '':'/').$tok;
-				$tree_base[$tok_base] = $y_index;
+			if (strpos($s, '_')===false) $hdb[] = $s; else $csv[] = $s;
+		}
+		if (count($csv)) {
+			$context = stream_context_create(array("ssl"=>array("verify_peer"=>false,"verify_peer_name"=>false)));
+			$table = $tb = array();
+			foreach ($csv as $k) {
+				$a = explode('_', $k);
+				if (empty($table[$a[1]])) $table[$a[1]] = array($k);
+				else $table[$a[1]][] = $k;
+				$dbname = $a[0];
+			}
+			if (isset($_REQUEST['debug'])) echo CSVREPO."?tree&key=csvrepo_{$dbname}<br>\n";
+			$data = file_get_contents(CSVREPO."?tree&key=csvrepo_$dbname", false, $context);
+			foreach (explode(',', $data) as $d) {
+				if (!isset($table[$d])) {
+					$tb[] = array('title' => $d, 'key'=>"csvrepo_{$dbname}_$d", "lazy" => true, "folder" => true);
+				}
+				else {
+					$leaf = $children = array();
+					foreach ($table[$d] as $key) {
+						$a = explode('_', $key);
+						$l = explode(',', array_pop($a));
+						$leaf[$l[0]] = isset($l[2])? $l[2]-0: 1;
+					}
+					if (isset($_REQUEST['debug'])) echo CSVREPO."?tree&key=csvrepo_{$dbname}_$d<br>\n";
+					$data = file_get_contents(CSVREPO."?tree&key=csvrepo_{$dbname}_$d", false, $context);
+					foreach (explode(',', $data) as $l) {
+						if (!isset($leaf[$l])) {
+							$children[] = array('title' => $l, 'key'=>"csvrepo_{$dbname}_{$d}_{$l}", "lazy" => false, "folder" => false, "icon"=>"./img/y0axis.png");
+						}
+						else {
+							$children[] = array('title' => $l, 'key'=>"csvrepo_{$dbname}_{$d}_{$l}", "lazy" => false, "folder" => false, "icon"=>"./img/y{$leaf[$l]}axis.png");
+						}
+					}
+					$tb[] = array('title' => $d, 'key'=>"csvrepo_{$dbname}_$d", "lazy" => false, "folder" => true, "expanded" => true, "children"=>$children);
+				}
+			}
+			$fancyConfig[] = array('title' => "<span style='color: darkgreen;font-weight: bold;'>$dbname</span>", 'key'=>"csvrepo_{$dbname}", "lazy" => false, "folder" => true, "expanded" => true, "children"=>$tb);
+		}
+		else {
+			$fancyConfig[] = array('title' => "<span style='color: darkgreen;font-weight: bold;'>$dbname</span>", 'key'=>"csvrepo_{$dbname}", "lazy" => true, "folder" => true);
+		}
+		if (!empty($hdb)) {
+			foreach ($hdb as $s) {
+				// skip formulae (which contain character '$')
+				if (strpos($s, '$')!==false) continue;
+				$id = explode(',', $s);
+				$y_index = isset($id[2])? $id[2]: (isset($id[1])? $id[1]: 1);
+				$att_conf_id = explode('[', $id[0]); 
+				// $res = mysqli_query($db, "SELECT att_name FROM att_conf WHERE att_conf_id={$att_conf_id[0]]");
+				$res = mysqli_query($db, "SELECT att_name FROM att_conf WHERE att_conf_id={$att_conf_id[0]}");
+				$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				$tok_base = '';
+				$nameArray = explode('/', strtr($row['att_name'], $skipdomain));
+				foreach ($nameArray as $tok) {
+					$tok_base .= ($tok_base==''? '':'/').$tok;
+					$tree_base[$tok_base] = $y_index;
+				}
+			}
+			// debug($tree_base); exit(0);
+			$tree_index = 4;
+			$res = mysqli_query($db, "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$tree_index) AS description FROM att_conf $where ORDER BY description");
+			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				$key = $row['description'];
+				$title = strtr($row['description'], $skipdomain);
+				if (isset($tree_base[$title])) {
+					$fancyConfig[] = expand_children($tree_base, $key, $title, $tree_index+1);
+				}
+				else {
+					$fancyConfig[] = array('title' => basename($title), 'key'=>$key, "lazy" => true, "folder" => true);
+				}
 			}
 		}
-		// debug($tree_base); exit(0);
-		$tree_index = 4;
-		$res = mysqli_query($db, "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$tree_index) AS description FROM att_conf $where ORDER BY description");
-		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
-			$key = $row['description'];
-			$title = strtr($row['description'], $skipdomain);
-			if (isset($tree_base[$title])) {
-				$fancyConfig[] = expand_children($tree_base, $key, $title, $tree_index+1);
-			}
-			else {
+		else {
+			$query = "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',4) AS description FROM att_conf $where ORDER BY description";
+			$res = mysqli_query($db, $query);
+			if (isset($_REQUEST['debug'])) echo "$query;<br>\n";
+			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+				$key = $row['description'];
+				$title = strtr($row['description'], $skipdomain);
 				$fancyConfig[] = array('title' => basename($title), 'key'=>$key, "lazy" => true, "folder" => true);
 			}
 		}
@@ -207,6 +265,7 @@
 		*/
 		$query = "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',4) AS description FROM att_conf $where ORDER BY description";
 		$res = mysqli_query($db, $query);
+		if (isset($_REQUEST['debug'])) echo "$query;<br>\n";
 		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 			$key = $row['description'];
 			$title = strtr($row['description'], $skipdomain);
@@ -214,6 +273,58 @@
 		}
 		// skip caching
 		// file_put_contents($buffer_filename, json_encode($fancyConfig));
+	}
+	else if (strpos($_REQUEST['key'], 'csvrepo_')!==false) {
+		$context = stream_context_create(array("ssl"=>array("verify_peer"=>false,"verify_peer_name"=>false)));
+		$n = substr_count($_REQUEST['key'], '_');
+		if ($n>2) {
+			$keys = explode(';', $_REQUEST['key']);
+			$table = array();
+			foreach ($keys as $k) {
+				$a = explode('_', $k);
+				if (empty($table[$a[2]])) $table[$a[2]] = array($k);
+				else $table[$a[2]][] = $k;
+				$db = $a[1];
+			}
+			if (isset($_REQUEST['debug'])) echo CSVREPO."?tree&key=csvrepo_{$db}<br>\n";
+			$data = file_get_contents(CSVREPO."?tree&key=csvrepo_$db", false, $context);
+			foreach (explode(',', $data) as $d) {
+				if (!isset($table[$d])) {
+					$fancyConfig[] = array('title' => $d, 'key'=>"csvrepo_{$db}_$d", "lazy" => true, "folder" => true);
+				}
+				else {
+					$leaf = $children = array();
+					foreach ($table[$d] as $key) {
+						$a = explode('_', $key);
+						$l = explode(',', array_pop($a));
+						$leaf[$l[0]] = isset($l[2])? $l[2]-0: 1;
+					}
+					if (isset($_REQUEST['debug'])) echo CSVREPO."?tree&key=csvrepo_{$db}_$d<br>\n";
+					$data = file_get_contents(CSVREPO."?tree&key=csvrepo_{$db}_$d", false, $context);
+					foreach (explode(',', $data) as $l) {
+						if (!isset($leaf[$l])) {
+							$children[] = array('title' => $l, 'key'=>"csvrepo_{$d}_{$l}", "lazy" => false, "folder" => false, "icon"=>"./img/y0axis.png");
+						}
+						else {
+							$children[] = array('title' => $l, 'key'=>"csvrepo_{$d}_{$l}", "lazy" => false, "folder" => false, "icon"=>"./img/y{$leaf[$l]}axis.png");
+						}
+					}
+					$fancyConfig[] = array('title' => $d, 'key'=>"csvrepo_{$db}_$d", "lazy" => false, "folder" => true, "children"=>$children);
+				}
+			}
+		}
+		else {
+			if (isset($_REQUEST['debug'])) echo CSVREPO."?tree&key={$_REQUEST['key']}<br>\n";
+			$data = file_get_contents(CSVREPO."?tree&key={$_REQUEST['key']}", false, $context);
+			foreach (explode(',', $data) as $d) {
+				if ($n<2) {
+					$fancyConfig[] = array('title' => $d, 'key'=>"{$_REQUEST['key']}_$d", "lazy" => true, "folder" => true);
+				}
+				else {
+					$fancyConfig[] = array('title' => $d, 'key'=>"{$_REQUEST['key']}_$d", "lazy" => false, "folder" => false, "icon"=>"./img/y0axis.png");
+				}
+			}
+		}
 	}
 	else {
 		$n = substr_count($_REQUEST['key'], '/') + 2;
@@ -239,7 +350,7 @@
 	}
 	// file_put_contents('tree_log.txt', date("Y-m-d H:i:s").' - '.json_encode($tsArray).' - '.json_encode($fancyConfig)."\n", FILE_APPEND);
 
-	header("Content-Type: application/json");
+	if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
 	echo json_encode($fancyConfig);
 ?>
 
