@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="">
 	<meta name="author" content="LZ">
-	<link rel="icon" href="http://www.elettra.eu/favicon.png">
+	<link rel="icon" href="https://www.elettra.eu/favicon.png">
 
 	<title>eGiga2m</title>
 	<style type="text/css">
@@ -139,6 +139,7 @@
 					<li><a data-toggle="modal" data-target="#linkModal" onClick="updateLink()">Link</a></li>
 					<li><a data-toggle="modal" data-target="#exportModal" onClick="updateLink()">Export</a></li>
 					<li><a data-toggle="modal" data-target="#confModal" onClick="updateConf()">Config</a></li>
+					<li><a data-toggle="modal" data-target="#analysisModal" onClick="initAnalysis()">Analysis</a></li>
 					<li><a href="#"><input type='text' id='search' style='color: blue' placeholder="Search"> <input type="button" data-toggle="modal" data-target="#searchModal" onClick="mysearch()" value='Search' style='color: black'></a></li>
 					<li><a data-toggle="modal" data-target="#helpModal" onClick="updateAbout()">Help</a></li>
 				</ul>
@@ -203,6 +204,7 @@
 			 <table><tr valign='top'><td><div id='hidetree' onClick='switchtree()' style = 'display:none'><img src='./img/left.png'></div></td><td>
 				<table><tr><td>
 				<div id='mybackground' style='float:left;border-width:10;background-color: white;width:1110px;height:810px;'>
+					
 					<div id='placeholder' style='width:1100px;height:800px;border-style:dashed;border-width:thin;border-color:black;'>
 						&nbsp;&nbsp;&nbsp;<span style="cursor:pointer;color:#909090;font-size:20px;fill:#909090;">Drop here a CSV file</span>
 					</div>
@@ -375,11 +377,30 @@
 						<label id='event_select_command'> <input type="checkbox" id='show_command'> <img src='./img/event_command.png'> commands</label><br><br>
 						<label id='event_select_button'> <input type="checkbox" id='show_button'> <img src='./img/event_button.png'> buttons</label><br>
 					</div>
+					Use CSV repo <input type='text' id='csvrepo'/> 
 				</div>
 			</div>
 			<div class="modal-footer">
 				<div class="pull-left">
 					<button type="button" class="btn btn-default" data-dismiss="modal" onClick="applyConf()">apply</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="modal fade" id="analysisModal" tabindex="-1" role="dialog" aria-labelledby="analysisModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content" style='width: 800px;'>
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+				<h4 class="modal-title" id="analysisModalLabel">Analysis</h4>
+			</div>
+			<div class="modal-body">
+				<div id='analysis'></div>
+			</div>
+			<div class="modal-footer">
+				<div class="pull-left">
+					<button type="button" class="btn btn-default" data-dismiss="modal" onClick="applyAnalysis()">apply</button>
 				</div>
 			</div>
 		</div>
@@ -413,6 +434,39 @@
 			<div class="modal-footer">
 				<div class="pull-left">
 					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="modal fade" id="csvModal" tabindex="-1" role="dialog" aria-labelledby="csvModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content" style='width: 800px;'>
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+				<h4 class="modal-title" id="csvModalLabel">eGiga2m</h4>
+			</div>
+			<div class="modal-body">
+				<h3>Separator</h3>
+				<b>Tab</b> <input type='radio' name='separator' id='separatorTab' value='tab'/>&nbsp;&nbsp;&nbsp;
+				<b>Comma ,</b> <input type='radio' name='separator' id='separatorComma' value='comma'/>&nbsp;&nbsp;&nbsp;
+				<b>Semicolumn ;</b> <input type='radio' name='separator' id='separatorSemicolumn' value='semicolumn'/>&nbsp;&nbsp;&nbsp;
+				<b>Other</b> <input type='radio' name='separator' id='separatorCustom' value='custom'/>&nbsp;&nbsp;&nbsp;<input type='text' size='2' id='separator'/>
+				<h3>Date Time format</h3>
+				<input type='text' id='datetime' value='YYYY-MM-DD HH:mm:ss' style='width: 20em;' /><br><br>
+				YYYY = four digit year<br>
+				MM = two digit month<br>
+				DD = two digit day<br>
+				HH = two digit hour<br>
+				mm = two digit minute<br>
+				ss = two digit second<br>
+				X = Unix Timestamp<br>
+				<a href='https://momentjs.com/docs/#/parsing/string-format/' target='_blank'>date time format documentation</a><br><br> 
+				Retain in <input type='text' id='retain'/> 
+			</div>
+			<div class="modal-footer">
+				<div class="pull-left">
+					<button type="button" class="btn btn-default" data-dismiss="modal" onclick='processCsv()'>Apply</button>
 				</div>
 			</div>
 		</div>
@@ -456,11 +510,10 @@
 	<script src='./lib/flot/jquery.flot.navigate.min.js' language='javascript' type='text/javascript'></script> 
 	<script src='./lib/flot/jquery.flot.canvas.min.js' language='javascript' type='text/javascript'></script> 
 
-	<!-- chart.js -->
 	<script src="./lib/chartjs/moment.min.js"></script>
 	<script src="./lib/chartjs/Chart.js"></script>
 	<script src="./lib/chartjs/utils.js"></script>
-
+	
 	<!-- canvas2image -->
 	<script src="./lib/canvas2image/base64.js"></script>
 	<script src="./lib/canvas2image/canvas2image.js"></script>
@@ -475,13 +528,13 @@
 	<!-- HighCharts has a double license policy, uncomment this part only if you have a valid license and you have installed it in ./lib/Highcharts
 	<script>var isHighChartsInstalled=true;</script>
 	<script src="./lib/Highcharts/highcharts.js"></script>
+	<script src="./lib/Highcharts/highcharts-more.js"></script>
 	<script src="./lib/Highcharts/modules/exporting.js"></script>
 	<script src="./lib/Highcharts/modules/no-data-to-display.js"></script>
-	-->
-	<!-- HighCharts has a double license policy, uncomment this part only if you have a valid license and you want to use online version
+	<!-- HighCharts has a double license policy, uncomment this part only if you have a valid license and you want to use online version >
 	<script>var isHighChartsInstalled=true;</script>
-	<script src="https://code.highcharts.com/highcharts.src.js"></script>
-	-->
+	<script src="https://code.highcharts.com/highcharts.src.js"></script-->
+	
 
 	<script src='./egiga2m_conf.js' type="text/javascript"></script>
 	<script src='./egiga2m.min.js' type="text/javascript"></script>
