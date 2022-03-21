@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.16.3';
+	var version = '1.17.0';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -52,6 +52,7 @@
 	var updateId = false;
 	var downtimeCheck = false;
 	var visible = [];
+	var ftree = null;
 	var flotOptions = {
 		series: { lines: { show: true } },
 		grid: { hoverable: true, clickable: true},
@@ -60,6 +61,7 @@
 		legend: { position: 'sw' },
 		canvas: true
 	};
+	var csvImport = {name: '', lines: []};
 	var fade_level = new Array();
 	for (j=0; j<events.length; j++) fade_level[events[j]] = 1; 
 
@@ -71,6 +73,14 @@
 	}
 	else {
 		initConf(false);
+	}
+	if (localStorage.length && typeof(localStorage.csvrepo) !== 'undefined') {
+		document.getElementById('csvrepo').value = localStorage.csvrepo;
+		document.getElementById('retain').value = localStorage.csvrepo;
+	}
+	if (typeof($_GET['plotservice']) !== 'undefined') {
+		// & = %26
+		plotService = $_GET['plotservice'];
 	}
 	if (typeof($_GET['visible']) !== 'undefined') {
 		visible = $_GET['visible'].split(';');
@@ -90,7 +100,6 @@
 		decimationSamples = $_GET['decimation_samples'];
 	}
 	if (document.getElementById('decimationSamples')) document.getElementById('decimationSamples').value = decimationSamples;
-	// console.log('plotService: '+plotService);
 
 	if (typeof(isHighChartsInstalled) !== 'boolean') {
 		document.getElementById('show_hc').checked = false;
@@ -216,14 +225,15 @@
 
 	function updateLink(myTs){
 		var ts = '';
-		if (document.getElementById('ts').value.length) {
+		if (ftree==null && document.getElementById('ts').value.length) {
 			ts = '&ts=' + document.getElementById('ts').value;
 		}
 		else {
 			var axis = [];
 			var tree = $("#tree").fancytree("getTree");
-			tree.visit(function(node){
+			if (tree) tree.visit(function(node){
 				if (!node.folder) {
+					// if (node.data.icon != './img/y0axis.png') console.log('node', node.data.icon, node.key);
 					if (node.data.icon == './img/y1axis.png') axis.push(node.key+',1,1');
 					if (node.data.icon == './img/y2axis.png') axis.push(node.key+',1,2');
 					if (node.data.icon == './img/surface.png') axis.push(node.key+',surface'); 
@@ -231,7 +241,7 @@
 					if (node.data.icon == './img/multi.png') axis.push(node.key+',multi');
 				}
 			});
-			if (axis.length) ts = '&ts=' + axis.join(';');
+			if (axis.length) ts = '&ts=' + axis.join(';').split('csvrepo_').join('');
 		}
 		var start = '';
 		if (document.getElementById('start').value.length) {
@@ -292,10 +302,13 @@
 			window.location = homeURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+chartjs+table;
 		}
 		else {
-			document.getElementById("plotOnly").setAttribute("onClick","javascript: location='"+plotURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event+"'");
-			document.getElementById("plotOnly").innerHTML = plotURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event;
-			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+homeURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event+"'");
-			document.getElementById("plotAndControls").innerHTML = homeURL+'?'+necessaryParam+optionalParam+hc+flot+chartjs+table+event;
+			var myParams = necessaryParam+optionalParam+hc+flot+chartjs+table+event;
+			myParams = myParams.replace('&show_error=','');
+			if (plotService.indexOf('analysis')>-1) myParams = myParams + '&plotservice=' + plotService.replaceAll('&','%26');
+			document.getElementById("plotOnly").setAttribute("onClick","javascript: location='"+plotURL+'?'+myParams+"'");
+			document.getElementById("plotOnly").innerHTML = plotURL+'?'+myParams;
+			document.getElementById("plotAndControls").setAttribute("onClick","javascript: location='"+homeURL+'?'+myParams+"'");
+			document.getElementById("plotAndControls").innerHTML = homeURL+'?'+myParams;
 			if (document.getElementById("scratch")) {
 				document.getElementById("scratch").setAttribute("onClick","javascript: location='"+homeURL+'?'+conf+"'");
 				document.getElementById("scratch").innerHTML = homeURL+'?'+conf;
@@ -415,7 +428,7 @@
 
 	function refreshExportLink(){
 		document.getElementById("timestampBlock").style.display = 'inline';
-		console.log('itx',document.getElementById("exportIgor").checked);
+		// console.log('itx',document.getElementById("exportIgor").checked);
 		if (document.getElementById("exportIgor").checked) document.getElementById("timestampBlock").style.display = 'none';
 		var exportTsLabel = document.getElementById('tsLabel').value.length? '&tsLabel='+document.getElementById('tsLabel').value: '';
 		exportTsLabel = exportTsLabel + (document.getElementById('nullValue').value.length? '&nullValue='+document.getElementById('nullValue').value: '');
@@ -426,7 +439,7 @@
 		}
 		else {
 			expu = exportURL+'&format='+exportFormat+exportBlanks+exportDecimation+exportTsLabel;
-			console.log(expu, expu.split('&').join('&amp;'));
+			// console.log(expu, expu.split('&').join('&amp;'));
 			document.getElementById('exportLink').innerHTML = expu.split('&').join('&amp;');
 			document.getElementById('exportLink').setAttribute("onClick","javascript: location='"+exportURL+"&format="+exportFormat+exportBlanks+exportDecimation+exportTsLabel+"'");
 		}
@@ -449,26 +462,37 @@
 		stop = document.getElementById('stop').value;
 		var surface = false;
 		var axis = [];
+		var axis2 = [];
 		var tree = $("#tree").fancytree("getTree");
 		tree.visit(function(node){
 			if (!node.folder) {
-				if (node.data.icon == './img/y1axis.png') axis.push(node.key+',1,1');
-				if (node.data.icon == './img/y2axis.png') axis.push(node.key+',1,2');
-				if (node.data.icon == './img/multi.png') {
-					axis.push(node.key+',multi');
+				if (node.key.indexOf('_')>-1) {
+					var naming = node.key.split('_');
+					naming.shift();
+					var db = naming.shift();
+					// if (typeof axis2[db] == 'undefined') axis2[db] = [];
+					if (node.data.icon == './img/y1axis.png') axis2.push(db+'_'+naming.join('_')+',1,1');
+					if (node.data.icon == './img/y2axis.png') axis2.push(db+'_'+naming.join('_')+',1,2');
 				}
-				if (node.data.icon == './img/surface.png') {
-					plotSurfaceTs(node.key, start, stop); 
-					axis.push(node.key+',surface'); 
-					surface = true;
-					document.getElementById('animationControls').style.display = 'none';
-				}
-				if (node.data.icon == './img/animation.png') {
-					document.getElementById('animationControls').style.display = 'inline';
-					frameNum = 0;
-					if (document.getElementById('show_chartjs').checked) {chartjsAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
-					if (document.getElementById('show_flot').checked) {flotAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
-					if (document.getElementById('show_hc').checked) {hcAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
+				else {
+					if (node.data.icon == './img/y1axis.png') axis.push(node.key+',1,1');
+					if (node.data.icon == './img/y2axis.png') axis.push(node.key+',1,2');
+					if (node.data.icon == './img/multi.png') {
+						axis.push(node.key+',multi');
+					}
+					if (node.data.icon == './img/surface.png') {
+						plotSurfaceTs(node.key, start, stop); 
+						axis.push(node.key+',surface'); 
+						surface = true;
+						document.getElementById('animationControls').style.display = 'none';
+					}
+					if (node.data.icon == './img/animation.png') {
+						document.getElementById('animationControls').style.display = 'inline';
+						frameNum = 0;
+						if (document.getElementById('show_chartjs').checked) {chartjsAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
+						if (document.getElementById('show_flot').checked) {flotAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
+						if (document.getElementById('show_hc').checked) {hcAnimationTs(node.key, start, stop); axis.push(node.key+',animation'); surface = true;}
+					}
 				}
 			}
 		});
@@ -477,7 +501,7 @@
 		if (!surface) document.getElementById('animationControls').style.display = 'none';
 		if (updateId!==false) {clearInterval(updateId); updateId = false;} 
 		document.getElementById('hidetree').style.display = 'inline';
-		if (!surface) plotTs(ts, start, stop);
+		if (!surface) plotTs(ts, axis2, start, stop);
 		add_history(0);
 	}
 
@@ -511,6 +535,7 @@
 			document.getElementById('stop').value = '';
 		}
 		var ts = $_GET['ts'];
+		var tsc = [];
 		if (ts.indexOf('surface')>=0) {
 			var tsArray = ts.split(',');
 			plotSurfaceTs(tsArray[0], start, stop);
@@ -529,6 +554,14 @@
 				hcAnimationTs(tsArray[0], start, stop);
 			}
 			return;
+		}
+		if (ts.indexOf('_')>=0) {
+			var tsa = ts.split(';');
+			var tsb = [];
+			for (var i=0; i<tsa.length; i++) {
+				if (tsa[i].indexOf('_')>=0) {tsc.push(tsa[i]);} else {tsb.push(tsa[i]);}
+			}
+			ts = tsb.join(';');
 		}
 		if (document.getElementById('hidetree')) {
 			document.getElementById('hidetree').style.display = 'inline';
@@ -555,104 +588,108 @@
 				document.getElementById('show_table').checked = true;
 			}
 		}
-		plotTs(ts, start, stop);
-		add_history(0);
+		plotTs(ts, tsc, start, stop);
+		if (ts!='') add_history(0);
 	}
 
 	function initTree($_GET) {
-		// console.log(typeof(document.getElementById('tree')));
-		$.get(treeService, function(data) {
-			if (data.length==0) {
+		// console.log('treeService', treeService+(typeof($_GET['ts']) !== 'undefined'? '&ts=' + $_GET['ts']: ''));
+		$.get(treeService+(typeof($_GET['ts']) !== 'undefined'? '&ts=' + $_GET['ts']: ''), function(tdata) {
+			if (tdata.length==0) {
 				var url = treeService.indexOf('?')>=0? treeService+'&host': treeService+'?host';
 				$.get(url, function(d) {
 					var t = new Date($.now());
 					$("body").html("<div style='margin-left: 10px;margin-top: -80px;'><h1>ERROR</h1>Cannot extract data from<br>"+d+"<br>or<br>"+treeService+'<br>'+t+'<br><a href="'+$(location).attr('href')+'">reload page</a></div>');
 				});
 			}
-		});
-		if (!$('#tree').length) return;
-		var source_url = treeService;
-		var treeHeight = $(window).height()-320;
-		if (treeHeight < 150) treeHeight = 150;
-		if (typeof(formula_edit) === 'undefined') $(tree).width(250).height(treeHeight);
-		if (typeof($_GET['ts']) !== 'undefined') source_url = source_url + '&ts=' + $_GET['ts'];
-		$("#tree").fancytree({
-			autoScroll: true,
-			source: {
-				url: source_url
-			},
-			lazyLoad: function(event, data) {
-				var node = data.node;
-				// Issue an ajax request to load child nodes
-				data.result = {
-					url: treeService,
-					data: {key: node.key}
-				}
-			},
-			click: function(event, data) {
-				if (data.targetType == 'icon' || data.targetType == 'title') {
-					if (typeof(formula_edit) === 'undefined') {
-						if (data.node.data.isArray) {
-							if (data.node.data.icon == './img/y0axis.png') {
-								data.node.data.icon = './img/surface.png';
-								data.node.data.tooltip = 'surface display';
+			if (localStorage.length && typeof(localStorage.csvrepo) !== 'undefined' && tdata[0].title.indexOf(localStorage.csvrepo)==-1) {
+				var ltree = {title: "<span style='color: darkgreen;font-weight: bold;'>"+localStorage.csvrepo+"</span>", key: "csvrepo_"+localStorage.csvrepo, lazy: true, folder: true}
+				tdata.unshift(ltree);
+				// console.log('tdata', tdata);
+			}
+			if (!$('#tree').length) return;
+			var source_url = treeService;
+			var treeHeight = $(window).height()-320;
+			if (treeHeight < 150) treeHeight = 150;
+			if (typeof(formula_edit) === 'undefined') $(tree).width(250).height(treeHeight);
+			if (typeof($_GET['ts']) !== 'undefined') source_url = source_url + '&ts=' + $_GET['ts'];
+			ftree = $("#tree").fancytree({
+				autoScroll: true,
+				source: tdata,
+				lazyLoad: function(event, data) {
+					// console.log('lazyLoad()', treeService, data.node.key);
+					var node = data.node;
+					// Issue an ajax request to load child nodes
+					data.result = {
+						url: treeService,
+						data: {key: node.key}
+					}
+				},
+				click: function(event, data) {
+					if (data.targetType == 'icon' || data.targetType == 'title') {
+						if (typeof(formula_edit) === 'undefined') {
+							if (data.node.data.isArray) {
+								if (data.node.data.icon == './img/y0axis.png') {
+									data.node.data.icon = './img/surface.png';
+									data.node.data.tooltip = 'surface display';
+								}
+								else if (data.node.data.icon == './img/surface.png') {
+									data.node.data.icon = './img/animation.png';
+									data.node.data.tooltip = 'animation display';
+								}
+								else if (data.node.data.icon == './img/animation.png') {
+									data.node.data.icon = './img/multi.png';
+									data.node.data.tooltip = 'multi line display';
+								}
+								else if (data.node.data.icon == './img/multi.png') {
+									data.node.data.icon = './img/y0axis.png';
+									data.node.data.tooltip = 'not selected';
+								}
 							}
-							else if (data.node.data.icon == './img/surface.png') {
-								data.node.data.icon = './img/animation.png';
-								data.node.data.tooltip = 'animation display';
+							else if (data.node.data.isString) {
+								if (data.node.data.icon == './img/y0axis.png') {
+									data.node.data.icon = './img/table.png';
+									data.node.data.tooltip = 'show table';
+								}
+								else if (data.node.data.icon == './img/table.png') {
+									data.node.data.icon = './img/y0axis.png';
+									data.node.data.tooltip = 'not selected';
+								}
 							}
-							else if (data.node.data.icon == './img/animation.png') {
-								data.node.data.icon = './img/multi.png';
-								data.node.data.tooltip = 'multi line display';
+							else {
+								if (data.node.data.icon == './img/y0axis.png') {
+									data.node.data.icon = './img/y1axis.png';
+									data.node.data.tooltip = 'show on Y1 axis';
+								}
+								else if (data.node.data.icon == './img/y1axis.png') {
+									data.node.data.icon = './img/y2axis.png';
+									data.node.data.tooltip = 'show on Y2 axis';
+								}
+								else if (data.node.data.icon == './img/y2axis.png') {
+									data.node.data.icon = './img/y0axis.png';
+									data.node.data.tooltip = 'not selected';
+								}
 							}
-							else if (data.node.data.icon == './img/multi.png') {
-								data.node.data.icon = './img/y0axis.png';
-								data.node.data.tooltip = 'not selected';
-							}
-						}
-						else if (data.node.data.isString) {
-							if (data.node.data.icon == './img/y0axis.png') {
-								data.node.data.icon = './img/table.png';
-								data.node.data.tooltip = 'show table';
-							}
-							else if (data.node.data.icon == './img/table.png') {
-								data.node.data.icon = './img/y0axis.png';
-								data.node.data.tooltip = 'not selected';
-							}
+							// tooltip is not updated by render() method so it's the same in all cases
+							data.node.data.tooltip = 'click to switch display mode';
+							data.node.render(true);
+							// workaround to avoid sorting by image
+							data.node.parent.sortChildren();
+							// return false;// Prevent default processing
 						}
 						else {
-							if (data.node.data.icon == './img/y0axis.png') {
-								data.node.data.icon = './img/y1axis.png';
-								data.node.data.tooltip = 'show on Y1 axis';
-							}
-							else if (data.node.data.icon == './img/y1axis.png') {
-								data.node.data.icon = './img/y2axis.png';
-								data.node.data.tooltip = 'show on Y2 axis';
-							}
-							else if (data.node.data.icon == './img/y2axis.png') {
-								data.node.data.icon = './img/y0axis.png';
-								data.node.data.tooltip = 'not selected';
-							}
+							$.get(treeService+'&reversekey='+data.node.key, function(data) {
+								if (data.length) append2formula('"'+data+'"');
+							});
 						}
-						// tooltip is not updated by render() method so it's the same in all cases
-						data.node.data.tooltip = 'click to switch display mode';
-						data.node.render(true);
-						// workaround to avoid sorting by image
-						data.node.parent.sortChildren();
-						// return false;// Prevent default processing
 					}
-					else {
-						$.get(treeService+'&reversekey='+data.node.key, function(data) {
-							if (data.length) append2formula('"'+data+'"');
-						});
-					}
-				}
-				return true;// Allow default processing
-			},
-			clickFolderMode: 2,
-			persist: true
+					return true;// Allow default processing
+				},
+				clickFolderMode: 2,
+				persist: true
+			});
+			updateLink();
 		});
-		updateLink();
 	}
 
 	function switchtree() {
@@ -694,6 +731,72 @@
 		}
 	}
 
+	function applyAnalysis() {
+		// reset plotService
+		if (typeof($_GET['conf']) !== 'undefined') {
+			document.getElementById('conf').value = $_GET['conf'];
+			initConf($_GET['conf']);
+		}
+		else {
+			initConf(false);
+		}
+		for (var i=0; i<analysis.length; i++) {
+			if (document.getElementById(analysis[i]).checked) {
+				var an = [];
+				for (var j=0; j<document.getElementById('conf'+analysis[i]).children.length; j++) {
+					// console.log('applyAnalysis()', document.getElementById('conf'+analysis[i]).children[j].name, document.getElementById('conf'+analysis[i]).children[j].type);
+					if (document.getElementById('conf'+analysis[i]).children[j].type=='text') {
+						an.push(document.getElementById('conf'+analysis[i]).children[j].name+'=' + document.getElementById('conf'+analysis[i]).children[j].value);
+					}
+					else if (document.getElementById('conf'+analysis[i]).children[j].type=='checkbox') {
+						an.push(document.getElementById('conf'+analysis[i]).children[j].name + (document.getElementById('conf'+analysis[i]).children[j].checked? '=1': '=0'));
+					}
+					else if (document.getElementById('conf'+analysis[i]).children[j].type=='select-one') {
+						var k = document.getElementById('conf'+analysis[i]).children[j].options.selectedIndex;
+						an.push(document.getElementById('conf'+analysis[i]).children[j].name+'=' + document.getElementById('conf'+analysis[i]).children[j].options[k].value);
+					}
+				}
+				// console.table(an);
+				var conf = '';
+				if (document.location.search.indexOf('conf=')>-1) conf = 'conf='+document.location.search.split('conf=')[1].split('&')[0]+'&';
+				plotService = './lib/analysis/'+analysis[i]+'.php?'+conf+an.join('&');
+			}
+		}
+		// console.log('plotService', plotService);
+	}
+	function switch_analysis(operator) {
+		for (var i=0; i<analysis.length; i++) {
+			document.getElementById('conf'+analysis[i]).style.display = (operator == analysis[i] && document.getElementById(analysis[i]).checked) ? 'block': 'none';
+			if (operator != analysis[i]) document.getElementById(analysis[i]).checked = false;
+		}
+	}
+
+	function initAnalysis() {
+		$.get('./lib/analysis/analysis.php?list', function(data) {
+			var d = data.split('<analysis/>')
+			document.getElementById('analysis').innerHTML = d[0];
+			analysis = d[1].split(',');
+			if (plotService.indexOf('analysis/')>-1) {
+				var an = plotService.split('analysis/')[1].split('.php?');
+				document.getElementById(an[0]).checked = true;
+				document.getElementById('conf'+an[0]).style.display = 'block';
+				var c = [];
+				var cnf = {}
+				if (an[1].indexOf('&')>-1) c = an[1].split('&');
+				if (an[1].indexOf('%26')>-1) c = an[1].split('%26');
+				for (var i=0; i<c.length; i++) { cnf[c[i].split('=')[0]] = c[i].split('=')[1];}
+				for (var j=0; j<document.getElementById('conf'+an[0]).children.length; j++) {
+					if (document.getElementById('conf'+an[0]).children[j].type=='text' || document.getElementById('conf'+an[0]).children[j].type=='select-one') {
+						document.getElementById('conf'+an[0]).children[j].value = cnf[document.getElementById('conf'+an[0]).children[j].name];
+					}
+					else if (document.getElementById('conf'+an[0]).children[j].type=='checkbox') {
+						document.getElementById('conf'+an[0]).children[j].checked = cnf[document.getElementById('conf'+an[0]).children[j].name]=='1';
+					}
+				}
+			}
+		});
+	}
+
 	function applyConf() {
 		// apply Y1 conf
 		document.getElementById('minY').value = document.getElementById('minY1set').value+';'+document.getElementById('minY2set').value;
@@ -701,6 +804,9 @@
 		document.getElementById('logY').value = (document.getElementById('logY1set').checked? '1': '0')+';'+(document.getElementById('logY2set').checked? '1': '0');
 		// apply style
 		document.getElementById('style').value = document.getElementById('styleSet').value;
+		
+		var csvrepo = document.getElementById('csvrepo').value;
+		if (csvrepo.length>0) localStorage.setItem('csvrepo', csvrepo); else localStorage.removeItem('csvrepo');
 	}
 
 	function updateConf() {
@@ -800,6 +906,7 @@
 
 	function handleFileSelect(evt) {
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
+		// console.log('handleFileSelect()',evt, height);
 		$("#mybackground").width($("#plotContainer").width()).height(((height-0)+10)+'px');
 		$("#placeholder").width($("#plotContainer").width()-10).height(height+'px');
 		document.getElementById('placeholder').style.border = "0px";
@@ -812,147 +919,172 @@
 		// Closure to capture the file information.
 		reader.onload = (function(theFile) {
 			return function(e) {
-				lines = e.target.result.split("\n");
-				val = lines[0].split(',');
-				col_number = val.length-1;
-				var yaxis_max_index = 1;
-				for (var j=0; j<col_number; j++) {
-					myPlotClass[j] = new Array();
-					myPlotClass[j].data = new Array();
-					if (document.getElementById('show_hc') && document.getElementById('show_hc').checked) {
-						myPlotClass[j].name = $.isNumeric(val[j+1])? 'ts1'+j: val[j+1].replace(/&deg;/g, "°");
-					}
-					else {
-						myPlotClass[j].lines = { show: true, fill: false };
-						myPlotClass[j].label = $.isNumeric(val[j+1])? 'ts1'+j: val[j+1];
-					}
-					if (val[j+1].substring(0, 1)=='Y' && $.isNumeric(val[j+1].substring(1, 2))) {
-						myPlotClass[j].yAxis = val[j+1].substring(1, 2)-1;
-						myPlotClass[j].yaxis = val[j+1].substring(1, 2)-0;
-						if (yaxis_max_index < val[j+1].substring(1, 2)) yaxis_max_index = val[j+1].substring(1, 2);
-					}
+				console.log('reader.onload', e, theFile);
+				csvImport.name = theFile.name;
+				csvImport.lines = e.target.result.split("\n");
+				var separator = '';
+				if (csvImport.lines[0].indexOf(',')>-1 && csvImport.lines[0].indexOf(';')==-1 && csvImport.lines[0].indexOf("\t")==-1) {separator = ","; document.getElementById('separatorComma').checked = true;}
+				if (csvImport.lines[0].indexOf(',')==-1 && csvImport.lines[0].indexOf(';')>-1 && csvImport.lines[0].indexOf("\t")==-1) {separator = ";"; document.getElementById('separatorSemicolumn').checked = true;}
+				if (csvImport.lines[0].indexOf(',')==-1 && csvImport.lines[0].indexOf(';')==-1 && csvImport.lines[0].indexOf("\t")>-1) {separator = "\t"; document.getElementById('separatorTab').checked = true;}
+				// console.log('separator', separator);
+				if (separator != '') {
+					var datetime = csvImport.lines[1].split(separator)[0];
+					// console.log('datetime', datetime);
+					if (datetime - 0 > 0) document.getElementById('datetime').value = 'X';
+					if (datetime[4] == '-' && datetime[7] == '-' && datetime[13] == ':' && datetime[16] == ':') document.getElementById('datetime').value = 'YYYY-MM-DD HH:mm:ss';
+					if (datetime[4] == '.' && datetime[7] == '.' && datetime[10] == '_' && datetime[13] == '.' && datetime[16] == '.') document.getElementById('datetime').value = 'YYYY.MM.DD_HH.mm.ss';
 				}
-				// title = escape(theFile.name);
-				var row_index = -1;
-				var showTable = document.getElementById('show_table') && document.getElementById('show_table').checked;
-				var tableContent = '<table class="table table-striped table-bordered table-condensed" width="100%"><thead><tr><th>timestamp</th>';
-				for (var i=0; i<col_number; i++) {
-					tableContent += '<th>'+myPlotClass[i].label+'</th>';
-				}
-				tableContent += '</tr></thead><tbody>';
-				var start = 0
-				for (var k=0; k<lines.length; k++) {
-					val = lines[k].split(',');
-					if (val.length < 2) continue;
-					if ($.isNumeric(val[0])) {
-						timestamp = val[0];
-						var myDate = new Date(val[0]*1000);
-					}
-					else if (val[0].indexOf('-')>=0) {
-						var v = val[0].split(' ');
-						var myDate = new Date(v[0]+"T"+v[1]); 
-						timestamp = myDate.getTime()/1000.0;
-					}
-					else continue;
-					if ($.isNumeric(timestamp) && timestamp>0) {
-						row_index++;
-						if (start==0) start = timestamp*1000;
-						tableContent += '<tr><td>'+myDate.toLocaleString()+'</td>'
-						for (var j=0; j<col_number; j++) {
-							tableContent += '<td>'+val[j+1]+'</td>';
-							if (val[j+1]==='') continue;
-							myPlotClass[j].data[row_index] = [timestamp*1000,parseFloat(val[j+1])];
-						}
-						tableContent += '</tr>';
-					}
-				}
-				stop = timestamp*1000;
-				if (document.getElementById('show_hc') && document.getElementById('show_hc').checked) {
-					var style = 'step';
-					if (document.getElementById('style') && document.getElementById('style').value.length) {
-						style = document.getElementById('style').value;
-					}
-					var chartConfig = {
-						chart: {
-							renderTo: document.getElementById('placeholder'),
-							type: 'line',
-							height: 800
-						},
-						title: {text: 'eGiga2m'},
-						xAxis: {type: 'datetime'},
-						yAxis: [],
-						tooltip: {
-							headerFormat: '<b>{series.name}</b><br>',
-							pointFormat: '{point.x:%d/%m/%Y %H\:%M\:%S}: {point.y:.9f} '
-						},
-						type: style=='step'? 'line': style,
-						series: myPlotClass
-					}
-					Highcharts.setOptions({
-						global: {
-							useUTC: false // true by default
-						}
-					});
-					for (var i=1; i<=yaxis_max_index; i++) {
-						chartConfig.yAxis[i-1] = {title: {text: 'Y'+i},opposite: yaxis_max_index==2 && i==2};
-					}
-					var localPlot = new Highcharts.Chart(chartConfig);
-					myPlot = localPlot;
-				}
-				else if (document.getElementById('show_flot') && document.getElementById('show_flot').checked) {
-					var options = {
-						series: { lines: { show: true } },
-						grid: { hoverable: true, clickable: true},
-						xaxis: { zoomRange: [0.01, 120000000], panRange: [start, stop], mode: "time", tickLength: 5 },
-						yaxes: [ { }, { position: "right" } ],
-						legend: { position: 'nw' },
-						canvas: true
-					};
-					var localPlot = $.plot($("#placeholder"), myPlotClass, options);
-					myPlot = localPlot;
-				}
-				else if (document.getElementById('show_chartjs') && document.getElementById('show_chartjs').checked) {
-					var options = {
-						scales: {
-							xAxes: [{
-								type: "time",
-								time: {
-									format: timeFormat,
-									// round: 'month',
-									tooltipFormat: timeFormat,// 'll HH:mm'
-								},
-								scaleLabel: {
-									display: true,
-									labelString: 'Date'
-								},
-								ticks: {
-									callback: function(value, index, values) {
-										return index==values.length-1? '': moment(values[index]? values[index]['_i']: 0).format('DD/MM/Y');
-									}
-								}
-							}, ],
-							yAxes: [{
-								scaleLabel: {
-									display: true,
-									labelString: 'value'
-								}
-							}]
-						},
-					};				
-					var localPlot = $.plot($("#placeholder"), myPlotClass, options);
-					myPlot = localPlot;
-				}
-				else {
-					$("#mybackground").height('1px');
-					$("#placeholder").height('1px');
-					document.getElementById('placeholder').innerHTML = '';
-				}
-				tableContent += '</tbody></table>';
-				document.getElementById('tableContainer').innerHTML = showTable? tableContent: '';
-				document.getElementById('pngCallback').style.display = 'inline';
-			};
+				$('#csvModal').modal('show');
+			}
 		})(f);
 		reader.readAsText(f);
+	}
+	function processCsv() {
+		var separator = '';
+		if (document.getElementById('separatorTab').checked) separator = "\t";
+		else if (document.getElementById('separatorComma').checked) separator = ",";
+		else if (document.getElementById('separatorSemicolumn').checked) separator = ";";
+		else separator = document.getElementById('separator').value;
+		const datetimeFormat = document.getElementById('datetime').value;
+		var val = csvImport.lines[0].split(separator);
+		col_number = val.length-1;
+		if (col_number < 1) {alert("Error: cannot detect columns using separator "+separator); return;}
+		var yaxis_max_index = 1;
+		myPlotClass = new Array();
+		for (var j=0; j<col_number; j++) {
+			myPlotClass[j] = new Array();
+			myPlotClass[j].data = new Array();
+			if (document.getElementById('show_hc') && document.getElementById('show_hc').checked) {
+				myPlotClass[j].name = $.isNumeric(val[j+1])? 'ts1'+j: val[j+1].replace(/&deg;/g, "°");
+			}
+			else {
+				myPlotClass[j].lines = { show: true, fill: false };
+				myPlotClass[j].label = $.isNumeric(val[j+1])? 'ts1'+j: val[j+1];
+			}
+			if (val[j+1].substring(0, 1)=='Y' && $.isNumeric(val[j+1].substring(1, 2))) {
+				myPlotClass[j].yAxis = val[j+1].substring(1, 2)-1;
+				myPlotClass[j].yaxis = val[j+1].substring(1, 2)-0;
+				if (yaxis_max_index < val[j+1].substring(1, 2)) yaxis_max_index = val[j+1].substring(1, 2);
+			}
+		}
+		// console.log(myPlotClass);
+		var row_index = -1;
+		var showTable = document.getElementById('show_table') && document.getElementById('show_table').checked;
+		var tableContent = '<table class="table table-striped table-bordered table-condensed" width="100%"><thead><tr><th>timestamp</th>';
+		for (var i=0; i<col_number; i++) {
+			tableContent += '<th>'+myPlotClass[i].label+'</th>';
+		}
+		tableContent += '</tr></thead><tbody>';
+		var start = 0;
+		for (var k=0; k<csvImport.lines.length; k++) {
+			val = csvImport.lines[k].split(separator);
+			if (val.length < 2) continue;
+			var momentDate = moment(val[0], datetimeFormat);
+			var timestamp = momentDate.valueOf();
+			if ($.isNumeric(timestamp) && timestamp>0) {
+				row_index++;
+				if (start==0) start = timestamp;
+				tableContent += '<tr><td>'+momentDate.toString()+'</td>'
+				for (var j=0; j<col_number; j++) {
+					tableContent += '<td>'+val[j+1]+'</td>';
+					if (val[j+1]==='') continue;
+					myPlotClass[j].data[row_index] = [timestamp,parseFloat(val[j+1])];
+				}
+				tableContent += '</tr>';
+			}
+		}
+		stop = timestamp;
+		if (document.getElementById('show_hc') && document.getElementById('show_hc').checked) {
+			var style = 'step';
+			if (document.getElementById('style') && document.getElementById('style').value.length) {
+				style = document.getElementById('style').value;
+			}
+			var chartConfig = {
+				chart: {
+					renderTo: document.getElementById('placeholder'),
+					type: 'line',
+					height: document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200
+				},
+				title: {text: 'eGiga2m'},
+				xAxis: {type: 'datetime'},
+				yAxis: [],
+				tooltip: {
+					headerFormat: '<b>{series.name}</b><br>',
+					pointFormat: '{point.x:%d/%m/%Y %H\:%M\:%S}: {point.y:.9f} '
+				},
+				type: style=='step'? 'line': style,
+				series: myPlotClass
+			}
+			Highcharts.setOptions({
+				global: {
+					useUTC: false // true by default
+				}
+			});
+			for (var i=1; i<=yaxis_max_index; i++) {
+				chartConfig.yAxis[i-1] = {title: {text: 'Y'+i},opposite: yaxis_max_index==2 && i==2};
+			}
+			var localPlot = new Highcharts.Chart(chartConfig);
+			myPlot = localPlot;
+		}
+		else if (document.getElementById('show_flot') && document.getElementById('show_flot').checked) {
+			var options = {
+				series: { lines: { show: true } },
+				grid: { hoverable: true, clickable: true},
+				xaxis: { zoomRange: [0.01, 120000000], panRange: [start, stop], mode: "time", tickLength: 5 },
+				yaxes: [ { }, { position: "right" } ],
+				legend: { position: 'nw' },
+				canvas: true
+			};
+			var localPlot = $.plot($("#placeholder"), myPlotClass, options);
+			myPlot = localPlot;
+		}
+		else if (document.getElementById('show_chartjs') && document.getElementById('show_chartjs').checked) {
+			var options = {
+				scales: {
+					xAxes: [{
+						type: "time",
+						time: {
+							format: timeFormat,
+							// round: 'month',
+							tooltipFormat: timeFormat,// 'll HH:mm'
+						},
+						scaleLabel: {
+							display: true,
+							labelString: 'Date'
+						},
+						ticks: {
+							callback: function(value, index, values) {
+								return index==values.length-1? '': moment(values[index]? values[index]['_i']: 0).format('DD/MM/Y');
+							}
+						}
+					}, ],
+					yAxes: [{
+						scaleLabel: {
+							display: true,
+							labelString: 'value'
+						}
+					}]
+				},
+			};				
+			var localPlot = $.plot($("#placeholder"), myPlotClass, options);
+			myPlot = localPlot;
+		}
+		else {
+			$("#mybackground").height('1px');
+			$("#placeholder").height('1px');
+			document.getElementById('placeholder').innerHTML = '';
+		}
+		tableContent += '</tbody></table>';
+		document.getElementById('tableContainer').innerHTML = showTable? tableContent: '';
+		document.getElementById('pngCallback').style.display = 'inline';
+		if (document.getElementById('retain').value.length>0) {
+			$.post("./lib/service/csv_service.php",{ name: csvImport.name, content: csvImport.lines.join("\n"), separator: separator, timeformat: datetimeFormat, db: document.getElementById('retain').value }, dataImported);
+		}
+	}
+
+	function dataImported(data) {
+		if (data.indexOf('ok')>-1) localStorage.setItem('csvrepo', document.getElementById('retain').value);
+		console.log('CSV repo', data);
 	}
 
 	function handleTreeSelect(evt) {
@@ -964,7 +1096,7 @@
 		// console.log(evt.dataTransfer.dropEffect);
 		$.get(treeService+'&searchkey='+attr, function(data) {
 			if (typeof(data[0]) !== 'undefined') {
-				console.log(document.getElementById('ts').value);
+				// console.log(document.getElementById('ts').value);
 				var ts = (addTs && document.getElementById('ts').value.length)? document.getElementById('ts').value+';'+data[0]: data[0];
 				updateLink(ts);
 				document.getElementById('ts').value = ts;
@@ -1054,7 +1186,7 @@
 		}
 		else {
 			var param = getQueryParams(myHistory[myHistoryCounter]);
-			plotTs(param['ts'], param['start'], (typeof(param['stop']) === 'undefined')? '': param['stop']);
+			plotTs(param['ts'], [], param['start'], (typeof(param['stop']) === 'undefined')? '': param['stop']);
 			var conf = ['minY','maxY','logY','height','style'];
 			for (c=0; c<conf.length; c++) {
 				document.getElementById(conf[c]).value = (typeof(param[conf[c]]) === 'undefined')? '': param[conf[c]];
@@ -1070,6 +1202,7 @@
 		for (var i=0; i<ts.length; i++) {
 			const s = ts[i].split(',');
 			curves[i] = {'request':s[0],'x':s[1],'y':s[2],'response': s[0]};
+			if (document.location.search.indexOf('replacets=false')>-1) curves[i+ts.length] = {'request':s[0],'x':s[1],'y':s[2],'response': s[0]};
 		}
 		return tsRequest;
 	}
@@ -1148,7 +1281,7 @@
 	function evalFormulae(data){
 		// 
 		return data; // skip evalFormulae(data) unless read/write data is preserved
-		var formulaDebug = true;
+		/*var formulaDebug = true;
 		var formulaSamples = new Array();
 		var newData = new Array();
 		var formulaReplace;
@@ -1199,16 +1332,17 @@
 			curves[curveIndex].response = newData.push({'label': strtr(curves[curveIndex].request, labelReplace),'xaxis':curves[curveIndex].x,'yaxis':curves[curveIndex].y,'data': formulaData});
 			if (formulaDebug) print_r(newData);
 		}
-		return newData;
+		return newData;*/
 	}
 
-	function plotTs(tsRequest, start, stop){
+	function plotTs(tsRequest, ts2, start, stop){
+		// console.log('tsRequest',tsRequest,'ts2',ts2);
 		curves = new Array();
 		myRequest = tsRequest;
 		var event = '';
 		for (j=0; j<events.length; j++) event += document.getElementById('show_'+events[j]).checked? '&show_'+events[j]+'='+document.getElementById('filter_'+events[j]).value: '';
 		event = `${event}&decimation=${decimation}&decimation_samples=${decimationSamples}`;
-		console.log(document.getElementById('hideOverMaxmin').checked);
+		// console.log(document.getElementById('hideOverMaxmin').checked);
 		// document.getElementById('hideOverMaxmin').value = true;
 		var hideOverMaxmin = document.getElementById('hideOverMaxmin')? document.getElementById('hideOverMaxmin').checked: false;
 		if (hideOverMaxmin) {
@@ -1237,52 +1371,106 @@
 		}
 		else if (stop.length) stop_param = '&stop=' + stop;
 		var prestart = document.getElementById('show_hc').checked? '&prestart=hc': '';
-		var ts = decodeTs(tsRequest);
+		var ts = tsRequest;
 		const stopTime = stop.length? new Date(stop): new Date();
 		// if (downtimeCheck) {
 			$.get(plotService+'&Seconds_Behind_Master', function(behind) {
 				if (behind>60) alert('WARNING\nThe data has not been updated for '+behind+' seconds');
 			})
 		//}
-		// console.log(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event);
-		if (ts.length < 1) {
+		// console.log('ts',ts,'ts2', ts2);
+		if (ts.length+ts2.length < 1) {
 			$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>WARNING: No Time Series has been requested</h4>Please select e Time Series and a time period");
 		}
-		else $.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
-			// console.log(data);
-			var num_rows = 0;
-			for (var dIndex=0; dIndex<data.ts.length; dIndex++) {
-				num_rows += data.ts[dIndex].num_rows;
-			}
-			if (num_rows == 0) {
-				$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>WARNING: No data available</h4>Please select e Time Series and a time period containing some data");
-			}
-			console.log('num_rows: '+num_rows);
-			const downtimeCheck = document.getElementById('downtimeCheck')? document.getElementById('downtimeCheck').checked: false;
-			if (downtimeCheck) {
-				const startTimestamp = data.ts[0].data[0].x? data.ts[0].data[0].x: data.ts[0].data[0][0];
-				const missingTS = new Array();
-				for (var dataIndex=0; dataIndex<data.ts.length; dataIndex++) {
-					num_rows += data.ts[dataIndex].num_rows
-					const lastTimestamp = data.ts[dataIndex].data[data.ts[dataIndex].data.length-1][0];
-					if ((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp) > 10 / data.ts[dataIndex].data.length) missingTS.push(data.ts[dataIndex].label);
+		else 
+			// console.log('plotService',plotService);
+			if (ts.length>0 && ts2.length>0) {
+				curves = [];
+				if (plotService.indexOf('analysis/')>-1) {
+					// console.log(plotService+'&'+start_param+stop_param+'&ts='+ts+';'+ts2.join(';')+prestart+event);
+					$.getJSON(plotService+'&'+start_param+stop_param+'&ts='+ts+';'+ts2.join(';')+prestart+event, function(data) {
+						for (var i=0; i<data.ts.length; i++) {
+							curves.push({request: data.ts[i].ts_id, x: ''+data.ts[i].xaxis, y: data.ts[i].yaxis, response: i});
+						}
+						plotData(evalFormulae(data.ts), data.event, data.forecast, start, stop);
+					})
 				}
-				if (missingTS.length) alert("WARNIG\nsome data may be missing (may be server or replication downtime) for Time Series:\n"+missingTS.join(','));
+				else {
+					var urls = ['./lib/service/csv_service.php?'+start_param+stop_param+'&ts='+ts2.join(';'),plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event];
+					Promise.all(urls.map(url =>
+						fetch(url).then(resp => resp.json())
+					)).then(mdata => {
+						// console.log('mdatats', mdata[0].ts.concat(mdata[1].ts), start, stop);
+						for (var i=0; i<mdata[0].ts.length; i++) {
+							curves.push({request: mdata[0].ts[i].ts_id, x: ''+mdata[0].ts[i].xaxis, y: mdata[0].ts[i].yaxis, response: i});
+						}
+						for (var j=0; j<mdata[1].ts.length; j++) {
+							curves.push({request: mdata[1].ts[j].ts_id, x: ''+mdata[1].ts[j].xaxis, y: mdata[1].ts[j].yaxis, response: mdata[1].ts[j].ts_id});
+						}
+						plotData(evalFormulae(mdata[0].ts.concat(mdata[1].ts)), mdata[1].event, mdata[0].forecast? mdata[0].forecast.concat(mdata[1].forecast): mdata[1].forecast, start, stop);
+					})
+				}
 			}
-			plotData(evalFormulae(data.ts), data.event, start, stop);
-		})
+			else if (ts2.length>0) {
+				$.getJSON((plotService.indexOf('analysis/')>-1? plotService+'&': './lib/service/csv_service.php?')+start_param+stop_param+'&ts='+ts2.join(';'), function(data) {
+					// console.log('csv data', data);
+					for (var i=0; i<data.ts.length; i++) {
+						curves.push({request: data.ts[i].ts_id, x: ''+data.ts[i].xaxis, y: data.ts[i].yaxis, response: i});
+					}
+					// console.log('curves', curves, evalFormulae(data.ts));
+					plotData(evalFormulae(data.ts), data.event, data.forecast, start, stop);
+				})
+				.fail(function() {
+					document.getElementById('placeholder').innerHTML = "&nbsp;&nbsp;&nbsp; ERROR: no data found, please double check start, stop and timeseries selection";
+				})
+				.always(function() {
+					if (typeof document.getElementById('placeholder').children[0] != 'undefined') document.getElementById('placeholder').children[0].src = '';
+				});
+			}
+			else if (ts.length>0) $.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
+				// console.log('$.get data',data, 'ts', ts);
+				for (var i=0; i<data.ts.length; i++) {
+					curves.push({request: data.ts[i].ts_id, x: ''+data.ts[i].xaxis, y: data.ts[i].yaxis, response: data.ts[i].ts_id});
+				}
+				var num_rows = 0;
+				for (var dIndex=0; dIndex<data.ts.length; dIndex++) {
+					num_rows += data.ts[dIndex].num_rows;
+				}
+				if (num_rows == 0) {
+					$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>WARNING: No data available</h4>Please select e Time Series and a time period containing some data");
+				}
+				// console.log('num_rows: '+num_rows);
+				const downtimeCheck = document.getElementById('downtimeCheck')? document.getElementById('downtimeCheck').checked: false;
+				if (downtimeCheck) {
+					const startTimestamp = data.ts[0].data[0].x? data.ts[0].data[0].x: data.ts[0].data[0][0];
+					const missingTS = new Array();
+					for (var dataIndex=0; dataIndex<data.ts.length; dataIndex++) {
+						num_rows += data.ts[dataIndex].num_rows
+						const lastTimestamp = data.ts[dataIndex].data[data.ts[dataIndex].data.length-1][0];
+						if ((stopTime.valueOf()-lastTimestamp) / (stopTime.valueOf()-startTimestamp) > 10 / data.ts[dataIndex].data.length) missingTS.push(data.ts[dataIndex].label);
+					}
+					if (missingTS.length) alert("WARNIG\nsome data may be missing (may be server or replication downtime) for Time Series:\n"+missingTS.join(','));
+				}
+				plotData(evalFormulae(data.ts), data.event, data.forecast, start, stop);
+			})
+			.fail(function() {
+				document.getElementById('placeholder').innerHTML = "&nbsp;&nbsp;&nbsp; ERROR: no data found, please double check start, stop and timeseries selection";
+			})
+			.always(function() {
+				if (typeof document.getElementById('placeholder').children[0] != 'undefined') document.getElementById('placeholder').children[0].src = '';
+			});
 	}
 
-	function plotData(dataTs, dataEvent, start, stop){
+	function plotData(dataTs, dataEvent, forecastData, start, stop){
 		var startArray = start.split(';');
 		var stopArray = stop.split(';');
-		// console.log(dataTs);
+		// console.table(dataTs);
 		if (document.getElementById('show_hc').checked) {
-			hcPlot(dataTs, dataEvent, startArray, stopArray);
+			hcPlot(dataTs, dataEvent, forecastData, startArray, stopArray);
 			document.getElementById('pngCallback').style.display = 'none';
 		}
 		else if (document.getElementById('show_chartjs').checked) {
-			chartjsPlot(dataTs, dataEvent, startArray, stopArray);
+			chartjsPlot(dataTs, dataEvent, forecastData, startArray, stopArray);
 			document.getElementById('pngCallback').style.display = 'none';
 		}
 		else if (document.getElementById('show_flot').checked) {
@@ -1313,7 +1501,7 @@
 // ------------
 // Chart.js plot
 // ------------
-	function chartjsPlot(data, dataEvent, start, stop) {
+	function chartjsPlot(data, dataEvent, forecastData, start, stop) {
 		if (window.myLine) window.myLine.destroy();
 		var style = 'step';
 		if (document.getElementById('style') && document.getElementById('style').value.length) {
@@ -1369,6 +1557,7 @@
 		if (logYArray[1]!="0") options.scales.yAxes[1].type = 'logarithmic';
 		var datasets = [];
 		var y2 = false;
+		// console.log('style',style);
 		for (var j=0; j<data.length; j++) {
 			var d = []
 			for (var i=0; i<data[j].data.length; i++) d.push({x: data[j].data[i][0],y: data[j].data[i][1]});
@@ -1385,6 +1574,88 @@
 				steppedLine: style=='step',
 				data: d,
 				yAxisID: 'y'+data[j].yaxis,
+			});
+		}
+		if (typeof forecastData != 'undefined') {
+			options.legend.labels = {
+				filter: function(item, chart) {
+					// Logic to remove a particular legend item goes here
+					return !item.text.includes('forecast ');
+				}
+			};
+			var d = [];
+			for (var i=0; i<forecastData['fv'].length; i++) d.push({x: forecastData['fv'][i][0],y: forecastData['fv'][i][1]});
+			datasets.push({
+				label: 'Forecast',
+				data: d,
+				backgroundColor: color(colors[1]).alpha(0.5).rgbString(),
+				borderColor: colors[1],
+				fill: false,
+				pointStyle: 'line',
+				showLine: true,
+				lineTension: 0.8,
+				cubicInterpolationMode: 'monotone',
+				steppedLine: false,
+			});
+			var d1 = []; var d2 = [];
+			for (var i=0; i<forecastData['f80'].length; i++) {
+				d1.push({x: forecastData['f80'][i][0],y: forecastData['f80'][i][1]});
+				d2.push({x: forecastData['f80'][i][0],y: forecastData['f80'][i][2]});
+			}
+			datasets.push({
+				label: 'forecast 80%',
+				data: d1,
+				color: 'pink',
+				borderColor: 'pink',
+				fill: false,
+				pointStyle: 'line',
+				showLine: true,
+				lineTension: 0,
+				cubicInterpolationMode: 'monotone',
+				steppedLine: false,
+			});
+			datasets.push({
+				label: 'forecast 80%',
+				data: d2,
+				color: 'pink',
+				borderColor: 'pink',
+				backgroundColor: 'pink',
+				fill: '-1',
+				pointStyle: 'line',
+				showLine: true,
+				lineTension: 0,
+				cubicInterpolationMode: 'monotone',
+				steppedLine: false,
+			});
+			d1 = []; var d2 = [];
+			for (var i=0; i<forecastData['f95'].length; i++) {
+				d1.push({x: forecastData['f95'][i][0],y: forecastData['f95'][i][1]});
+				d2.push({x: forecastData['f95'][i][0],y: forecastData['f95'][i][2]});
+			}
+			datasets.push({
+				label: 'forecast 95%',
+				data: d1,
+				borderColor: 'mistyrose',
+				color: 'mistyrose',
+				fill: false,
+				pointStyle: 'line',
+				showLine: true,
+				lineTension: 0,
+				cubicInterpolationMode: 'monotone',
+				steppedLine: false,
+			});
+			datasets.push({
+				label: 'forecast 95%',
+				data: d2,
+				color: 'mistyrose',
+				borderColor: 'mistyrose',
+				backgroundColor: 'mistyrose',
+				fill: '-1',
+				pointStyle: 'line',
+				showLine: true,
+				lineTension: 0,
+				cubicInterpolationMode: 'monotone',
+				steppedLine: false,
 			});
 		}
 		if (!y2) options.scales.yAxes.pop();
@@ -1454,20 +1725,6 @@
 		if (document.getElementById('hidetree')) document.getElementById('hidetree').style.display = 'inline';
 		// flotUpdate();
 	}
-/*
-	function getRandomData() {
-		y = Math.random() * 100 - 50;
-		myPlot.data.push([(new Date()).getTime(), y]);
-	}
-
-	function flotUpdate() {
-		myPlot.setData([getRandomData()]);
-		// Since the axes don't change, we don't need to call plot.setupGrid()
-		myPlot.draw();
-		setTimeout(flotUpdate, updatePlot);
-	}
-*/
-
 	// show value and time in tooltip
 	function showTooltip(x, y, contents) {
 		$('<div id="tooltip">' + contents + '</div>').css( {
@@ -1506,7 +1763,7 @@
 			document.getElementById('startInput').value = document.getElementById('start').value = startStop[0];
 			document.getElementById('stopInput').value = document.getElementById('stop').value = startStop[1];
 			// flotPlot(myRequest, startStop[0], startStop[1]);
-			plotTs(myRequest, startStop[0], startStop[1]);
+			plotTs(myRequest, [], startStop[0], startStop[1]);
 			add_history(0);
 		}
 		else {
@@ -1518,10 +1775,10 @@
 // HighCharts plot
 // ------------
 	var printing = false;
-	function hcPlot(data, eventData, startArray, stopArray){
+	function hcPlot(data, eventData, forecastData, startArray, stopArray){
 		$("#canvas").hide();
 		$("#placeholder").show();
-		// console.log('data: ',data);
+		// console.log('data', data)
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		if (height < 300) height = 300;
@@ -1538,37 +1795,38 @@
 		for (var j in curves) {
 			if (yaxis_max_index < curves[j].y) yaxis_max_index = curves[j].y;
 		}
-		var k=0;
+		var kk=0;
 		for (j=0; j<events.length; j++) document.getElementById('event_'+events[j]).style.display = 'none';
 		myPlotClass = [];
-		// console.log('curves: ',curves);
+		// console.log('curves', curves);
 		for (var j in curves) {
 			if (j=='clone') continue;
-			if (data) while (data[k] && data[k]['ts_id'].split('[')[0]==curves[j]['request']) {
-				const query_time = (data[k]['query_time'])? data[k]['query_time']: 0;
-				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[k]['num_rows']/query_time).toFixed(0): '';
-				const title = 'Samples: '+data[k]['data'].length+(data[k]['num_rows']>data[k]['data'].length? '/'+data[k]['num_rows']: '')+((data[k]['query_time'])?', query time: '+query_time.toFixed(2)+' [s]'+samplesPerSecond:'');
-				var name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>';
-				if (typeof($_GET['num_rows']) !== 'undefined') name = name+' num_rows: '+data[k]['num_rows'];
+			// console.log('kk', kk, 'j', j,'data[kk]', data[kk], data[kk]['ts_id'].split('[')[0], curves[j]['request']);
+			if (data) while (data[kk] && data[kk]['ts_id'].split('[')[0]==curves[j]['request']) {
+				const query_time = (data[kk]['query_time'])? data[kk]['query_time']: 0;
+				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[kk]['num_rows']/query_time).toFixed(0): '';
+				const title = 'Samples: '+data[kk]['data'].length+(data[kk]['num_rows']>data[kk]['data'].length? '/'+data[kk]['num_rows']: '')+((data[kk]['query_time'])?', query time: '+query_time.toFixed(2)+' [s]'+samplesPerSecond:'');
+				var name = '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[kk]) !== 'undefined')? tsLabel[kk]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[kk]['label'].replace(/&deg;/g, "°"))+'</span>';
+				if (typeof($_GET['num_rows']) !== 'undefined') name = name+' num_rows: '+data[kk]['num_rows'];
 				myPlotClass.push({
-					shortName: ((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°")),
-					name: '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[k]) !== 'undefined')? tsLabel[k]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[k]['label'].replace(/&deg;/g, "°"))+'</span>',
-					xAxis: data[k]['xaxis']-1,
+					shortName: ((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[kk]) !== 'undefined')? tsLabel[kk]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[kk]['label'].replace(/&deg;/g, "°")),
+					name: '<span title="'+title+'">'+((typeof(tsLabel) !== 'undefined' && typeof(tsLabel[kk]) !== 'undefined')? tsLabel[kk]: (yaxis_max_index>1? 'Y'+(curves[j]['y']? curves[j]['y']: 1)+' ':'')+data[kk]['label'].replace(/&deg;/g, "°"))+'</span>',
+					xAxis: data[kk]['xaxis']-1,
 					yAxis: $.isNumeric(curves[j].y)? curves[j].y-1: 0,
-					data: data[k]['data'],
-					visible: typeof(visible[k]) !== 'undefined'? visible[k]=='true': true,
+					data: data[kk]['data'],
+					visible: typeof(visible[kk]) !== 'undefined'? visible[kk]=='true': true,
 					step: style=='step'? 'left': false
 				});
-				if (xaxis_max_index < data[k]['xaxis']) xaxis_max_index = data[k]['xaxis'];
-				if (typeof(data[k]['categories']) !== 'undefined') categories[data[k]['yaxis']-1] = data[k]['categories'];
-				if (data[k]['ranges']) {
+				if (xaxis_max_index < data[kk]['xaxis']) xaxis_max_index = data[kk]['xaxis'];
+				if (typeof(data[kk]['categories']) !== 'undefined') categories[data[kk]['yaxis']-1] = data[kk]['categories'];
+				if (data[kk]['ranges']) {
 					myPlotClass.push({
 						name: 'Range',
-						data: data[k]['ranges'],
+						data: data[kk]['ranges'],
 						type: 'arearange',
 						lineWidth: 0,
 						linkedTo: ':previous',
-						color: Highcharts.getOptions().colors[k],
+						color: Highcharts.getOptions().colors[kk],
 						fillOpacity: 0.5,
 						zIndex: 0,
 						marker: {
@@ -1576,9 +1834,46 @@
 						}
 					});
 				}
-				k++;
+				kk++;
 			}
 			else emptyMessage = "No variable selected"
+		}
+		// console.log('myPlotClass', myPlotClass);
+		if (typeof forecastData != 'undefined') {
+			myPlotClass.push({
+				name: 'Forecast',
+				data: forecastData['fv'],
+				color: 'red',
+				zIndex: 1
+			});
+			myPlotClass.push({
+				name: 'Forecast 80%',
+				data: forecastData['f80'],
+				type: 'arearange',
+				lineWidth: 0,
+				linkedTo: ':previous',
+				color: 'pink',
+				opacity: 0.4,
+				fillOpacity: 0.4,
+				zIndex: 0,
+				marker: {
+					enabled: false
+				}
+			});
+			myPlotClass.push({
+				name: 'Forecast 95%',
+				data: forecastData['f95'],
+				type: 'arearange',
+				lineWidth: 0,
+				linkedTo: ':previous',
+				color: 'lightpink',
+				opacity: 0.3,
+				fillOpacity: 0.3,
+				zIndex: -1,
+				marker: {
+					enabled: false
+				}
+			});
 		}
 		// console.log('myPlotClass: ',myPlotClass);
 		for (var j in eventData) {
@@ -1629,7 +1924,7 @@
 								startStop = timeZoom(myPlotClass[0].data[i][0], event.xAxis[0].value, myPlotClass[0].data[myPlotClass[0].data.length-1][0]);
 								document.getElementById('startInput').value = document.getElementById('start').value = startStop[0];
 								document.getElementById('stopInput').value = document.getElementById('stop').value = startStop[1];
-								plotTs(myRequest, startStop[0], startStop[1]);
+								plotTs(myRequest, [], startStop[0], startStop[1]);
 								add_history(0);
 							}
 							else {
@@ -1670,7 +1965,7 @@
 				height: height
 			},
 			title: {text: 'eGiga2m'},
-			plotOptions: { series: { animation: !updatePlot } },
+			plotOptions: { series: { animation: !updatePlot, turboThreshold: 4000 } },
 			xAxis: [],
 			yAxis: [],
 			tooltip: {
@@ -1795,7 +2090,7 @@
 			if (mychart != -1) {mychart = this; return;} // avoid multiple keydown function
 			mychart = this;
 			$(document).keydown(function(e){
-				var mySeries = (typeof(mychart.hoverSeries) === 'undefined')? 0: mychart.hoverSeries.index;
+				var mySeries = ((typeof(mychart.hoverSeries) == 'undefined') || (mychart.hoverSeries == null))? 0: mychart.hoverSeries.index;
 				// print_r(mychart);
 				switch(e.which) {
 					case 37:
@@ -2047,3 +2342,5 @@
 			surfacePlot.draw(data, options, basicPlotOptions, glOptions);
 		})
 	}
+
+// http://closure-compiler.appspot.com
