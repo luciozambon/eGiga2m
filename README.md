@@ -4,7 +4,7 @@ eGiga2m is a web graphic data viewer.
 
 Data is supposed to be organized as a set of unevenly spaced time series.
 
-Time series are taken from a web service which typically extracts data from a structured database or are stored in a CSV file drag-and-dropped on the plot area.
+Time series are taken from a web service which typically extracts data from a structured database or are stored in a CSV file drag-and-dropped on the plot area. Data from CSV files can be stored in a server side repository. 
 
 Each time series is identified by a unique name and by an ID. Time series names are displayed in a hierarchical tree.
 
@@ -30,6 +30,9 @@ Clicking again on the same time series will switch the plot to the right axis .
 Clicking the third time on the same time series will remove it from the plot .
 
 The "Show" button will create/update the plot using all the selected configurations.
+
+## Time series analysis
+From the "analysis" menu a few time series analysis tools are available, all should be considered as experimental, forecast in particular.
 
 ## Examples
 
