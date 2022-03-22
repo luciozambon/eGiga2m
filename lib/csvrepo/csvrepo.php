@@ -70,6 +70,30 @@ function myquery($query, $param=array()) {
 	return $data;
 }
 
+
+if (isset($_REQUEST['tree'])) {
+	$a = explode('_', $_REQUEST['key']);
+	if (!in_array($a[1], $databases)) die("ERROR: storage not supported");
+	$sql = new SqlInterface('pg');
+	$sql->sql_connect(HOST, USERNAME, PASSWORD, $a[1]);
+	if (count($a)==2) {
+		$query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type='BASE TABLE'";
+		$data = $sql->sql_secure($query, array());
+		$res = array(); foreach ($data as $d) {$res[] = $d['table_name'];}
+		die(implode(',', $res));
+	}
+	if (count($a)==3) {
+		$query = "SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY column_name";
+		$data = $sql->sql_secure($query, array($a[2]));
+		foreach ($data as $d) {
+			if ($d['column_name']=='time') continue;
+			$col[] = $d['column_name'];
+		}
+		die(implode(',', $col));
+	}
+	die("ERROR: key not found or invalid");
+}
+
 if (isset($_REQUEST['ts'])) {
 	$c = pg_connect("host=".HOST." user=".USERNAME." password=".PASSWORD);
 	$start = explode(';', $_REQUEST['start']);
@@ -88,6 +112,9 @@ if (isset($_REQUEST['ts'])) {
 	}
 	$r = explode(';', $_REQUEST['ts']);
 	$ds = array();
+	$skipdecimation = isset($_REQUEST['all']) || 
+		(isset($_REQUEST['decimationSamples']) && ($_REQUEST['decimationSamples']=='0')) || 
+		(isset($_REQUEST['decimation']) && ($_REQUEST['decimation']=='none'));
 	foreach ($r as $k=>$req) {
 		$q = explode(',', $req);
 		$parts = explode('_', $q[0]);
@@ -107,7 +134,7 @@ if (isset($_REQUEST['ts'])) {
 			);
 		}
 		$p2 = strtolower(trim(pg_escape_identifier($parts[2]), '"'));
-		$ds[$parts[0]][$pg_table]['col'][] = $ds[$parts[0]][$pg_table]['dt'] <= THRESHOLD_5M? $p2: "avg_{$p2} AS $p2";
+		$ds[$parts[0]][$pg_table]['col'][] = ($ds[$parts[0]][$pg_table]['dt'] <= THRESHOLD_5M || $skipdecimation)? $p2: "avg_{$p2} AS $p2";
 		$ds[$parts[0]][$pg_table]['x'][] = $q[1]-0;
 		$ds[$parts[0]][$pg_table]['y'][] = $q[2]-0;
 	}
@@ -116,7 +143,7 @@ if (isset($_REQUEST['ts'])) {
 	foreach ($ds as $db => $tb) {
 		$conn = pg_connect("host=".HOST." dbname=$db user=".USERNAME." password=".PASSWORD);
 		foreach ($tb as $table => $column) {
-			if ($column['dt'] <= THRESHOLD_5M || isset($_REQUEST['all'])) {
+			if ($column['dt'] <= THRESHOLD_5M || $skipdecimation) {
 				$query = "SELECT EXTRACT(EPOCH FROM time)*1000 AS time,".implode(',', $column['col'])." FROM $table WHERE '{$column['start']}'<=time {$column['stop']} ORDER BY time";
 			}
 			else if ($column['dt'] <= THRESHOLD_1H) {
@@ -148,29 +175,6 @@ if (isset($_REQUEST['ts'])) {
 	}
 	if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
 	die(json_encode($data));
-}
-
-if (isset($_REQUEST['tree'])) {
-	$a = explode('_', $_REQUEST['key']);
-	if (!in_array($a[1], $databases)) die("ERROR: storage not supported");
-	$sql = new SqlInterface('pg');
-	$sql->sql_connect(HOST, USERNAME, PASSWORD, $a[1]);
-	if (count($a)==2) {
-		$query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type='BASE TABLE'";
-		$data = $sql->sql_secure($query, array());
-		$res = array(); foreach ($data as $d) {$res[] = $d['table_name'];}
-		die(implode(',', $res));
-	}
-	if (count($a)==3) {
-		$query = "SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY column_name";
-		$data = $sql->sql_secure($query, array($a[2]));
-		foreach ($data as $d) {
-			if ($d['column_name']=='time') continue;
-			$col[] = $d['column_name'];
-		}
-		die(implode(',', $col));
-	}
-	die("ERROR: key not found or invalid");
 }
 
 if (isset($_REQUEST['import'])) {
