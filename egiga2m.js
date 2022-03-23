@@ -1396,7 +1396,7 @@
 					})
 				}
 				else {
-					var urls = ['./lib/service/csv_service.php?'+start_param+stop_param+'&ts='+ts2.join(';'),plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event];
+					var urls = ['./lib/service/csv_service.php?'+start_param+stop_param+'&ts='+ts2.join(';')+event,plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event];
 					Promise.all(urls.map(url =>
 						fetch(url).then(resp => resp.json())
 					)).then(mdata => {
@@ -1412,7 +1412,7 @@
 				}
 			}
 			else if (ts2.length>0) {
-				$.getJSON((plotService.indexOf('analysis/')>-1? plotService+'&': './lib/service/csv_service.php?')+start_param+stop_param+'&ts='+ts2.join(';'), function(data) {
+				$.getJSON((plotService.indexOf('analysis/')>-1? plotService+'&': './lib/service/csv_service.php?')+start_param+stop_param+'&ts='+ts2.join(';')+event, function(data) {
 					// console.log('csv data', data);
 					for (var i=0; i<data.ts.length; i++) {
 						curves.push({request: data.ts[i].ts_id, x: ''+data.ts[i].xaxis, y: data.ts[i].yaxis, response: i});
