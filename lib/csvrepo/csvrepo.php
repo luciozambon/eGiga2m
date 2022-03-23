@@ -168,7 +168,8 @@ if (isset($_REQUEST['ts'])) {
 				foreach ($c as $j=>$y) {
 					$d[] = array($time[$j]-0,$y-0);
 				}
-				$data['ts'][] = array("display_unit"=>"","ts_id"=>"$i","label"=>"{$db}_{$table}_{$col}","xaxis"=>$column['x'][$i],"yaxis"=>"{$column['y'][$i]}","data"=>$d,"query_time"=>$querytime);
+				$ca = explode(' AS', strtr($col,array('avg_'=>'')));
+				$data['ts'][] = array("display_unit"=>"","ts_id"=>"$i","label"=>"{$db}_{$table}_{$ca[0]}","xaxis"=>$column['x'][$i],"yaxis"=>"{$column['y'][$i]}","data"=>$d,"query_time"=>$querytime);
 			}
 		}
 		pg_close($conn);
