@@ -196,9 +196,9 @@
 			}
 			$fancyConfig[] = array('title' => "<span style='color: darkgreen;font-weight: bold;'>$dbname</span>", 'key'=>"csvrepo_{$dbname}", "lazy" => false, "folder" => true, "expanded" => true, "children"=>$tb);
 		}
-		else {
+		/* else {
 			$fancyConfig[] = array('title' => "<span style='color: darkgreen;font-weight: bold;'>$dbname</span>", 'key'=>"csvrepo_{$dbname}", "lazy" => true, "folder" => true);
-		}
+		} */
 		if (!empty($hdb)) {
 			foreach ($hdb as $s) {
 				// skip formulae (which contain character '$')
