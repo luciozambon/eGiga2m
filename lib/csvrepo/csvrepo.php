@@ -140,6 +140,9 @@ if (isset($_REQUEST['ts'])) {
 	}
 	pg_close($c);
 	$data = array('ts'=>array());
+	if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
+	echo '{"ts":[';
+	$envelope = '';
 	foreach ($ds as $db => $tb) {
 		$conn = pg_connect("host=".HOST." dbname=$db user=".USERNAME." password=".PASSWORD);
 		foreach ($tb as $table => $column) {
@@ -161,21 +164,24 @@ if (isset($_REQUEST['ts'])) {
 			$time = pg_fetch_all_columns($result,0);
 			$querytime += microtime(true);
 			foreach ($column['col'] as $i=>$col) {
+				if (!empty($envelope)) echo ',';
+				$ca = explode(' AS', strtr($col,array('avg_'=>'')));
+				$envelope = array("display_unit"=>"","ts_id"=>"$i","label"=>"{$db}_{$table}_{$ca[0]}","xaxis"=>$column['x'][$i],"yaxis"=>"{$column['y'][$i]}","data"=>array('eGiga2m_separator'),"query_time"=>$querytime, "num_rows"=>pg_affected_rows($result));
+				$env = explode('"eGiga2m_separator"', json_encode($envelope));
+				echo $env[0];
 				$querytime -= microtime(true);
 				$c = pg_fetch_all_columns($result,$i+1);
 				$querytime += microtime(true);
-				$d = array();
 				foreach ($c as $j=>$y) {
-					$d[] = array($time[$j]-0,$y-0);
+					if ($j>0) echo ',';
+					echo json_encode(array($time[$j]-0,$y-0));
 				}
-				$ca = explode(' AS', strtr($col,array('avg_'=>'')));
-				$data['ts'][] = array("display_unit"=>"","ts_id"=>"$i","label"=>"{$db}_{$table}_{$ca[0]}","xaxis"=>$column['x'][$i],"yaxis"=>"{$column['y'][$i]}","data"=>$d,"query_time"=>$querytime);
+				echo $env[1];
 			}
 		}
 		pg_close($conn);
 	}
-	if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
-	die(json_encode($data));
+	die(']}');
 }
 
 if (isset($_REQUEST['import'])) {
