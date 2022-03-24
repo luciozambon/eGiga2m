@@ -64,6 +64,22 @@
 			echo ($var===0? "0": $var)."<p>\n";
 		}
 	}
+	function return_bytes($val) {
+		$val = trim($val);
+		if (($len = strlen($val)) < 1) {
+			return 0;
+		}	
+		$last = strtolower($val{strlen($val)-1});
+		switch($last) {
+			case 'g':
+					 $val *= 1024;
+			case 'm':
+					 $val *= 1024;
+			case 'k':
+					 $val *= 1024;
+		}
+		return $val;
+	}
 
 	// ----------------------------------------------------------------
 	// parse and detect time periods
@@ -116,6 +132,8 @@
 		}
 		if (count($ts)) $_REQUEST['ts'] = implode(';', array_keys($ts));
 	}
+
+	$memory_limit = return_bytes(ini_get('memory_limit'));
 
 	if (!isset($_REQUEST['start'])) die('no start (date/time) selected');
 	if (!isset($_REQUEST['ts'])) die('no ts (time series) selected');
@@ -419,6 +437,12 @@
 							if ($io=="rw") {
 								$big_data_w[] = array($row['time']*1000, (($type=='devstring') or ($row['val_w'] === NULL))? $row['val_w']: $row['val_w']-0);
 							}
+						}
+					}
+					if (function_exists('memory_get_usage')) {
+						if ($memory_limit-memory_get_usage() < 16400) {
+							header("HTTP/1.1 507 Insufficient Storage");
+							exit();
 						}
 					}
 				}
