@@ -578,35 +578,49 @@
 		$max_id = $last_id;
 		for ($i=0; $i<=$max_id; $i++) {$dataxls[$i]=$old_data[$i];}
 		// UNION will remove duplicates. UNION ALL does not.
-		$query = implode(' UNION ', $query_array)." ORDER BY $orderby";
-		if (isset($_REQUEST['debug'])) {debug($query, 'big query'); $t0 = microtime(TRUE);}
-		$res = mysqli_query($db, $query); if (!$res) die($query.'; '.mysqli_error($db));
-		if (isset($_REQUEST['debug'])) {echo "execution time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "num_rows: ".mysqli_num_rows($res)."<br>\n"; $t0 = microtime(TRUE);}
-		$memory_threshold = $memory_limit*(isset($_REQUEST['buffered_output'])? 0.499: 0.999);
-		$y = 2;
-		if (isset($_REQUEST['decimation'])) {
-			emit_data_decimated($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format);
-		}
-		if (isset($_REQUEST['foh'])) {
-			emit_data_foh($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format, $old_data, $old_time);
-		}
-		while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
-			if (memory_get_usage() > $memory_threshold) die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
-			if ($old_time[$row['ts_index']]==$row['timestamp']) {
-				if ($last_id==$row['ts_index']) continue; 
-				for ($i=$last_id+1; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
-				if ($last_id<$max_id) emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
+		$querybase = implode(' UNION ', $query_array)." ORDER BY $orderby";
+		$recordsPerIteration = 50000;
+		$start = 0;
+		for (;;) {
+			$query = "$querybase LIMIT $start , $recordsPerIteration";
+			if (isset($_REQUEST['debug'])) {debug($query, 'big query'); $t0 = microtime(TRUE);}
+			$res = mysqli_query($db, $query); if (!$res) die($query.'; '.mysqli_error($db));
+			if (isset($_REQUEST['debug'])) {echo "execution time: ".(microtime(TRUE)-$t0)."<br>\n"; echo "num_rows: ".mysqli_num_rows($res)."<br>\n"; $t0 = microtime(TRUE);}
+			$memory_threshold = $memory_limit*(isset($_REQUEST['buffered_output'])? 0.499: 0.999);
+			$y = 2;
+			if (isset($_REQUEST['decimation'])) {
+				emit_data_decimated($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format);
 			}
-			else {
-				for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
-				emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: (isset($_REQUEST['timestamp'])? strtotime($row['time']): $row['time'])));
-				for ($i=0; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
-				// if (isset($_REQUEST['debug'])) {debug($row, 'row'); debug(is_null($row['val'])); debug(is_numeric($row['val']));}
-				emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
+			if (isset($_REQUEST['foh'])) {
+				emit_data_foh($res, $data_type, $memory_threshold, $max_id, $nl, $separator, $format, $old_data, $old_time);
 			}
-			$old_time[$row['ts_index']] = $row['timestamp'];
-			$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): ($data_type=='itx'? "NAN": NULL);
-			$last_id = $row['ts_index'];
+			$r = mysqli_fetch_all($res, MYSQLI_ASSOC);
+			foreach($r as $row) {
+				if (memory_get_usage() > $memory_threshold) {
+					if (isset($_REQUEST['ignore_error'])) {unset($row); break;}
+					else die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
+				}
+				if ($old_time[$row['ts_index']]==$row['timestamp']) {
+					if ($last_id==$row['ts_index']) continue; 
+					for ($i=$last_id+1; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
+					if ($last_id<$max_id) emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
+				}
+				else {
+					for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
+					emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: (isset($_REQUEST['timestamp'])? strtotime($row['time']): $row['time'])));
+					for ($i=0; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
+					// if (isset($_REQUEST['debug'])) {debug($row, 'row'); debug(is_null($row['val'])); debug(is_numeric($row['val']));}
+					emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
+				}
+				$old_time[$row['ts_index']] = $row['timestamp'];
+				$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): ($data_type=='itx'? "NAN": NULL);
+				$last_id = $row['ts_index'];
+			}
+			for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
+			if (mysqli_num_rows($res)<$recordsPerIteration) break;
+			$GLOBALS['res'] = null;
+			$GLOBALS['r'] = null;
+			$start += $recordsPerIteration;
 		}
 		for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
 		if ($data_type=='itx') emit_output("{$nl}END{$nl}"); else if ($data_type=='csv') emit_output($nl);
