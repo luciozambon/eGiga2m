@@ -1,5 +1,5 @@
 <?php
-
+	// https://stackoverflow.com/questions/48800128/using-php-mysql-how-do-i-free-memory
 	include './hdbpp_conf.php';
 	$timezone = date_default_timezone_get();
 
@@ -70,15 +70,16 @@
 			return 0;
 		}	
 		$last = strtolower($val{strlen($val)-1});
+		$v = (int) substr($val, 0, -1);
 		switch($last) {
 			case 'g':
-					 $val *= 1024;
+					 $v *= 1024;
 			case 'm':
-					 $val *= 1024;
+					 $v *= 1024;
 			case 'k':
-					 $val *= 1024;
+					 $v *= 1024;
 		}
-		return $val;
+		return $v;
 	}
 
 	// ----------------------------------------------------------------
@@ -116,6 +117,199 @@
 			return date('Y-m-d H:i:s', $t - $n*$time_factor - ($t % $time_factor));
 		}
 		return $time;
+	}
+
+	// ----------------------------------------------------------------
+	// based on https://stackoverflow.com/questions/48800128/using-php-mysql-how-do-i-free-memory
+	function optimized_query() {
+		global $db, $memory_limit, $start, $stop, $ts, $ts_array, $data_type_result, $decimationSamples, $decimation, $stop_timestamp, $querytime, 
+		$skipdomain, $fetchtime, $pretimer;
+		if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
+		echo '{"ts":[';
+		$tsbreak = '';
+		foreach ($ts as $xaxis=>$ts_array) {
+			if (empty($ts_array)) continue;
+			$start_timestamp = strtotime($start[$xaxis-1]);
+			$interval = $stop_timestamp[$xaxis-1] - $start_timestamp;
+			$slot_maxmin = $decimationSamples>0? $interval*2/$decimationSamples: 0;
+			foreach ($ts_array as $ts_num=>$ts_id_num) {
+				$recordsPerIteration = isset($_REQUEST['recordsPerIteration'])? $_REQUEST['recordsPerIteration']-0: 500000;
+				if (isset($_REQUEST['debug'])) debug($ts_num, 'ts_num');
+				if (isset($_REQUEST['debug'])) debug($ts_id_num, 'ts_id_num');
+				$big_data_w = array();
+				list($att_conf_id,$element_index,$trash) = explode('[',trim($ts_id_num[0], ']').'[[',3);
+				if (isset($_REQUEST['debug'])) debug($att_conf_id, 'att_conf_id');
+				if (isset($_REQUEST['debug'])) debug($element_index, 'element_index');
+				$query = "SELECT * FROM att_parameter WHERE att_conf_id=$att_conf_id ".strtr($stop[$xaxis-1],array('data_time'=>'recv_time'))." ORDER BY recv_time DESC LIMIT 1";
+				// $query = "SELECT COUNT(*), display_unit FROM (SELECT DISTINCT att_conf_id, display_unit FROM att_parameter ORDER BY display_unit) AS t GROUP BY display_unit";
+				$querytime -= microtime(true);
+				$res = mysqli_query($db, $query);
+				$querytime += microtime(true);
+				if (isset($_REQUEST['debug'])) debug($query, 'query');
+				while ($unit_row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+					if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row'); debug(json_decode($unit_row['enum_labels']));}
+					$data_buffer['display_unit'] = $unit_row['display_unit']=='No display unit'? '': $unit_row['display_unit'];
+					if ($unit_row['enum_labels']!='[]') $data_buffer['categories'] = json_decode($unit_row['enum_labels']);
+				}
+				$query = "SELECT * FROM att_conf,att_conf_data_type WHERE att_conf_id=$att_conf_id AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id";
+				$querytime -= microtime(true);
+				$res = mysqli_query($db, $query);
+				$querytime += microtime(true);
+				if (isset($_REQUEST['debug'])) debug($query, 'query');
+				$conf_row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				list($dim, $type, $io) = explode('_', $conf_row['data_type']);
+				$table = sprintf("att_{$dim}_{$type}_{$io}");
+				// do not process read/write for array
+				if (($io=="rw") and (($element_index=='0') or (!empty($_REQUEST['readonly'])))) $io = "ro";
+				if (($io=="rw") and ($element_index=='1')) $io = "wo";
+				$col_name = $data_type_result[$io];
+				if ($type=='devstate') $data_buffer['categories'] = $state;
+				if ($type=='devboolean') $data_buffer['categories'] = $bool;
+				$data_buffer['ts_id'] = $att_conf_id;
+				$data_buffer['label'] = strtr($conf_row['att_name'], $skipdomain);
+				$data_buffer['xaxis'] = $xaxis;
+				$data_buffer['yaxis'] = $ts_id_num[1];
+				$orderby = "data_time";
+				$last = isset($_REQUEST['last'])? ' DESC LIMIT 1': '';
+				$thresh = isset($_REQUEST['thresh_lt'])? " AND ".strtr($data_type_result[$io], array(' AS val'=>''))." < ".($_REQUEST['thresh_lt']-0): '';
+				$thresh = isset($_REQUEST['thresh_gt'])? " AND ".strtr($data_type_result[$io], array(' AS val'=>''))." > ".($_REQUEST['thresh_gt']-0): $thresh;
+				$query = "SELECT COUNT(*) AS n FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$thresh";
+				// echo "querytime: $querytime<br>\n";
+				$querytime -= microtime(true);
+				$res = mysqli_query($db, $query);
+				$querytime += microtime(true);
+				$data = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				$num_rows = $data['n'];
+				// echo "querytime: $querytime<br>\n";
+				$data_buffer['num_rows'] = $num_rows;
+				$data_buffer['data'] = array('eGiga2m_separator');
+				$data_buffer['query_time'] = 'eGiga2m_querytime';
+				$querybase = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$thresh ORDER BY $orderby$last";
+				$start = 0;
+				$env = explode('"eGiga2m_separator"', json_encode($data_buffer));
+				echo $env[0];
+				$data_separator = '';
+				$sample = -1;
+				$oversampled = false;
+				// limit to less than 1000 samples http://api.highcharts.com/highcharts#plotOptions.series.turboThreshold
+				if (($decimationSamples > 0) && ($decimation !== 'none')) {
+					$sampling_every = ceil($num_rows/$decimationSamples);
+					if (isset($_REQUEST['debug'])) debug($sampling_every, "sampling_every");
+					$oversampled = $sampling_every>1;
+					// echo "recordsPerIteration: $recordsPerIteration, sampling_every: $sampling_every<br>\n";
+					$recordsPerIteration -= $recordsPerIteration % $sampling_every;
+					// echo "recordsPerIteration: $recordsPerIteration<br>\n"; exit();
+				}
+				$maxv = $minv = array();
+				for (;;) {
+					$query = "$querybase LIMIT $start , $recordsPerIteration";
+					if (isset($_REQUEST['debug'])) debug($query);
+					// debug($query); exit(0);
+					$querytime -= microtime(true);
+					$res = mysqli_query($db, $query);
+					$querytime += microtime(true);
+					$fetchtime -= microtime(true);
+					if ($pretimer and ($num_rows<500)) {
+						$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time <= '{$start[$xaxis-1]}' ORDER BY data_time DESC LIMIT 1";
+						$fetchtime += microtime(true);
+						$querytime -= microtime(true);
+						$res2 = mysqli_query($db, $query);
+						$querytime += microtime(true);
+						$fetchtime -= microtime(true);
+						if (mysqli_num_rows($res2)>0) {
+							$conf_row = mysqli_fetch_array($res2, MYSQLI_ASSOC);
+							if (round($conf_row['time'])<strtotime($start[$xaxis-1]." $timezone"))
+							echo $data_separator.json_encode(array('x'=>strtotime($start[$xaxis-1]." $timezone")*1000,'y'=>$conf_row['val']-0, 
+							'marker'=>array('symbol'=>"url($host/img/prestart.png)"), 
+							'prestart'=>$conf_row['time']*1000));
+							$data_separator = ',';
+						}
+					}
+					else {
+						$avgbuf = $avgcount = 0;
+						if (isset($_REQUEST['dump'])) {echo "<br>\nINSERT INTO $table (data_time, att_conf_id, value_r) VALUES "; $dumprow=0;}
+						$querytime -= microtime(true);
+						$rows = mysqli_fetch_all($res, MYSQLI_ASSOC);
+						$querytime += microtime(true);
+						if ($oversampled) {
+							if (isset($_REQUEST['debug'])) debug($row, "oversampled, decimation: $decimation, row");
+							if ($decimation=='downsample') {
+								for ($i=0; $i<$recordsPerIteration; $i+=$sampling_every) {
+									if (!isset($rows[$i])) break;
+									$row = $rows[$i];
+									// echo $data_separator.$i.json_encode($rows[$i])."\n";
+									echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
+									$data_separator = ',';
+								}
+							}
+							else if ($decimation=='avg') {
+								foreach ($rows as $row) {
+									$sample++;
+									if (($sample+1) % $sampling_every) {
+										if ($row['val'] !== NULL) {
+											$avgbuf += $row['val']-0;
+											$avgcount++;
+										}
+									}
+									else {
+										echo $data_separator.json_encode(array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL));
+										$data_separator = ',';
+										$avgbuf = $avgcount = 0;
+									}
+								}
+							}
+							else if ($decimation=='maxmin') {
+								foreach ($rows as $row) {
+									$sample++;
+									$v = $row['val']-0;
+									if (isset($max) && !is_null($max)) {
+										if ($v>$max) $max = $v;
+										if ($v<$min) $min = $v;
+									}
+									else $max = $min = $v;
+									// if (is_null($row['val'])) $max = $min = NULL;
+									if (($sample+1) % $sampling_every) {
+										if ($row['val'] !== NULL) {
+											$avgbuf += $v;
+											$avgcount++;
+										}
+									}
+									else {
+										echo $data_separator.json_encode(array($row['time']*1000, $min)).','.json_encode(array($row['time']*1000, $max));
+										$data_separator = ',';
+										unset($max);
+									}
+								}
+							}
+						}
+						else {
+							if (isset($_REQUEST['debugjson'])) {$data_buffer['data'] = array('eGiga2m_separator'); $buf = explode('"eGiga2m_separator"', json_encode($data_buffer)); echo '<pre>';print_r($buf);die('</pre>');}
+							foreach ($rows as $row) {
+								if (isset($_REQUEST['debug'])) {debug($row, 'row');debug($type, 'type');}
+								else {
+									echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
+									$data_separator = ',';
+								}
+								if (function_exists('memory_get_usage')) {
+									if ($memory_limit-memory_get_usage() < 8200) {
+										header("HTTP/1.1 507 Insufficient Storage");
+										exit();
+									}
+								}
+							}
+						}
+					}
+					// debug(count($big_data["ts{$xaxis}_".$ts_id_num]['data']), 'ts'.$ts_id_num);
+					$fetchtime += microtime(true);
+					if (mysqli_num_rows($res)<$recordsPerIteration) break;
+					unset($res);
+					unset($rows);
+					$start += $recordsPerIteration;
+				}
+				echo strtr($env[1],array('"eGiga2m_querytime"'=>$querytime));
+			}
+		}
+		die('],"event":[]}');
 	}
 
 	$is_json_array = defined("ARRAY_TYPE") && ARRAY_TYPE=="json";
@@ -172,7 +366,21 @@
 	$querytime = $oldquerytime = $fetchtime = 0.0;
 	$samples = 0;
 	$decimationSamples = isset($_REQUEST['decimation_samples'])? $_REQUEST['decimation_samples']-0: 1000;
-	$decimation = isset($_REQUEST['decimation'])? $_REQUEST['decimation']: 'maxmin'; // maxmin, downsample, none
+	$decimation = isset($_REQUEST['decimation'])? $_REQUEST['decimation']: 'maxmin'; // maxmin, downsample, avg, avgmaxmin, none
+			
+	// SELECT GROUP_CONCAT(att_conf_data_type_id) AS array FROM att_conf_data_type WHERE data_type LIKE 'array%'
+	// SELECT GROUP_CONCAT(att_conf_data_type_id) AS array FROM att_conf_data_type WHERE data_type LIKE '%w'
+	$att_conf_ids = array();
+	foreach ($ts_array as $tsr) {$a=explode(',', $tsr); $att_conf_ids[]=$a[0];}
+	$query = "SELECT GROUP_CONCAT(data_type) AS dtype FROM att_conf,att_conf_data_type WHERE att_conf_id IN (".implode(',',$att_conf_ids).") AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id";
+	$res = mysqli_query($db, $query);
+	$data = mysqli_fetch_array($res, MYSQLI_ASSOC);
+	$notarray = strpos($data['dtype'], 'array_')===false;
+	$notrw = strpos($data['dtype'], '_rw')===false;
+
+	if (($decimation!='avgmaxmin') && $notarray && ($notrw || isset($_REQUEST['readonly']))) {
+		optimized_query();
+	}
 	foreach ($ts as $xaxis=>$ts_array) {
 		if (empty($ts_array)) continue;
 		$start_timestamp = strtotime($start[$xaxis-1]);
@@ -237,7 +445,7 @@
 			$sample = -1;
 			$oversampled = false;
 			// limit to less than 1000 samples http://api.highcharts.com/highcharts#plotOptions.series.turboThreshold
-			if (($decimationSamples > 0) && ($decimation!=='none')) {
+			if (($decimationSamples > 0) && ($decimation !== 'none')) {
 				$sampling_every = ceil(mysqli_num_rows($res)/$decimationSamples);
 				if (isset($_REQUEST['debug'])) debug($sampling_every, "sampling_every");
 				$oversampled = $sampling_every>1;
@@ -299,6 +507,7 @@
 			else {
 				$big_data[$ts_counter]['num_rows'] = mysqli_num_rows($res);
 				$big_data[$ts_counter]['query_time'] = $querytime - $oldquerytime;
+				if (isset($_REQUEST['debugjson'])) {$big_data[$ts_counter]['data'] = array('eGiga2m_separator'); $buf = explode('"eGiga2m_separator"', json_encode($big_data[$ts_counter])); echo '<pre>';print_r($buf);die('</pre>');}
 				$oldquerytime = $querytime;
 				$avgbuf = $avgcount = 0;
 				if (isset($_REQUEST['dump'])) {echo "<br>\nINSERT INTO $table (data_time, att_conf_id, value_r) VALUES "; $dumprow=0;}
