@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.17.0';
+	var version = '1.18.0';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -52,6 +52,7 @@
 	var updateId = false;
 	var downtimeCheck = false;
 	var visible = [];
+	var parameters = {'correlation': null};
 	var ftree = null;
 	var flotOptions = {
 		series: { lines: { show: true } },
@@ -81,6 +82,12 @@
 	if (typeof($_GET['plotservice']) !== 'undefined') {
 		// & = %26
 		plotService = $_GET['plotservice'];
+	}
+	for (var i in parameters) {
+		if (typeof($_GET[i]) !== 'undefined') {
+			parameters[i] = $_GET[i];
+			document.getElementById(i).checked = true;
+		}
 	}
 	if (typeof($_GET['visible']) !== 'undefined') {
 		visible = $_GET['visible'].split(';');
@@ -236,6 +243,7 @@
 					// if (node.data.icon != './img/y0axis.png') console.log('node', node.data.icon, node.key);
 					if (node.data.icon == './img/y1axis.png') axis.push(node.key+',1,1');
 					if (node.data.icon == './img/y2axis.png') axis.push(node.key+',1,2');
+					if (node.data.icon == './img/xaxis.png') axis.push(node.key+',1,2');
 					if (node.data.icon == './img/surface.png') axis.push(node.key+',surface'); 
 					if (node.data.icon == './img/animation.png') axis.push(node.key+',animation'); 
 					if (node.data.icon == './img/multi.png') axis.push(node.key+',multi');
@@ -293,6 +301,11 @@
 		// console.log('downtimeCheck: '+downtimeCheck);
 		var necessaryParam = conf+start+stop+ts;
 		var optionalParam = yconf+style+height+decimationStr+decimationSamplesStr+downtimeCheckStr+hideOverMaxmin;
+		for (var i in parameters) {
+			if (document.getElementById(i) && document.getElementById(i).checked) {
+				optionalParam = optionalParam + '&'+i+'=true';
+			}
+		}
 		jsonURL = window.location.protocol + "//" + window.location.host + path.join('/') + plotService.substr(1)+start+stop+ts+optionalParam;
 		// console.log('jsonURL', jsonURL);
 		var jsonTreeURL = window.location.protocol + "//" + window.location.host + path.join('/') + treeService.substr(1)+start+stop+ts+optionalParam;
@@ -473,10 +486,12 @@
 					// if (typeof axis2[db] == 'undefined') axis2[db] = [];
 					if (node.data.icon == './img/y1axis.png') axis2.push(db+'_'+naming.join('_')+',1,1');
 					if (node.data.icon == './img/y2axis.png') axis2.push(db+'_'+naming.join('_')+',1,2');
+					if (node.data.icon == './img/xaxis.png') axis2.push(db+'_'+naming.join('_')+',1,2');
 				}
 				else {
 					if (node.data.icon == './img/y1axis.png') axis.push(node.key+',1,1');
 					if (node.data.icon == './img/y2axis.png') axis.push(node.key+',1,2');
+					if (node.data.icon == './img/xaxis.png') axis.push(node.key+',1,2');
 					if (node.data.icon == './img/multi.png') {
 						axis.push(node.key+',multi');
 					}
@@ -594,7 +609,7 @@
 
 	function initTree($_GET) {
 		// console.log('treeService', treeService+(typeof($_GET['ts']) !== 'undefined'? '&ts=' + $_GET['ts']: ''));
-		$.get(treeService+(typeof($_GET['ts']) !== 'undefined'? '&ts=' + $_GET['ts']: ''), function(tdata) {
+		$.get(treeService+(typeof($_GET['ts']) !== 'undefined'? '&ts=' + $_GET['ts']: '')+(parameters.correlation!=null? '&correlation=1': ''), function(tdata) {
 			if (tdata.length==0) {
 				var url = treeService.indexOf('?')>=0? treeService+'&host': treeService+'?host';
 				$.get(url, function(d) {
@@ -652,6 +667,20 @@
 									data.node.data.tooltip = 'show table';
 								}
 								else if (data.node.data.icon == './img/table.png') {
+									data.node.data.icon = './img/y0axis.png';
+									data.node.data.tooltip = 'not selected';
+								}
+							}
+							else if (parameters.correlation != null) {
+								if (data.node.data.icon == './img/y0axis.png') {
+									data.node.data.icon = './img/y1axis.png';
+									data.node.data.tooltip = 'show on Y1 axis';
+								}
+								else if (data.node.data.icon == './img/y1axis.png') {
+									data.node.data.icon = './img/xaxis.png';
+									data.node.data.tooltip = 'show on X axis';
+								}
+								else if (data.node.data.icon == './img/xaxis.png' || data.node.data.icon == './img/y2axis.png') {
 									data.node.data.icon = './img/y0axis.png';
 									data.node.data.tooltip = 'not selected';
 								}
@@ -807,6 +836,9 @@
 		
 		var csvrepo = document.getElementById('csvrepo').value;
 		if (csvrepo.length>0) localStorage.setItem('csvrepo', csvrepo); else localStorage.removeItem('csvrepo');
+		for (var i in parameters) {
+			if (document.getElementById(i) && document.getElementById(i).checked) optionalParam = parameters[i] = 1;
+		}
 	}
 
 	function updateConf() {
@@ -1279,60 +1311,33 @@
 	}
 
 	function evalFormulae(data){
-		// 
-		return data; // skip evalFormulae(data) unless read/write data is preserved
-		/*var formulaDebug = true;
-		var formulaSamples = new Array();
-		var newData = new Array();
-		var formulaReplace;
-		var dataIndex=0;
-		// for each curve
-		for (var curveIndex=0; curveIndex<curves.length; curveIndex++) {
-			// skip if not a formula
-			if (curves[curveIndex].response>=0) {
-				while (data[dataIndex] && data[dataIndex]['ts_id']==curves[curveIndex]['request']) {
-					newData.push(data[dataIndex]); 
-					dataIndex++;
+		// console.log('evalFormulae()',data);
+		if ((parameters.correlation != null) && (data.length>1)) {
+			var d0;
+			for (d0=0; d0<data.length; d0++) {
+				if (data[d0].yaxis=="2") {break;}
+			}
+			var cdata;
+			for (var i=0; i<data.length; i++) {
+				if (i == d0) continue;
+				var k;
+				cdata = [];
+				// console.log('i', i, data[i].data.length, d0, data[d0].data.length);
+				for (var j=0; j<data[i].data.length; j++) {
+					k = 0;
+					// console.log(k, data[d0].data[k][0], data[i].data[j][0]);
+					while (typeof data[d0].data[k] != 'undefined' && (typeof data[d0].data[k][0] == 'undefined' || data[d0].data[k][0] < data[i].data[j][0])) {k++; /*console.log(k, data[d0].data[k][0], data[i].data[j][0]);*/}
+					if (k>0 && typeof data[d0].data[k-1] != 'undefined' && typeof data[d0].data[k-1][1] != 'undefined') cdata.push([data[d0].data[k-1][1], data[i].data[j][1], data[d0].data[k-1][0]]);
 				}
-				continue;
+				data[i].data = cdata;
+				data[i].display_unit = '<b>'+data[d0].label+'</b>';
+				// console.log('cdata ',cdata);
 			}
-			var formulaData = new Array();
-			if (formulaDebug) alert('curveIndex: '+curveIndex+', curves[curveIndex].response: '+curves[curveIndex].response);
-			formulaSamples = [];
-			formulaReplace = {};
-			labelReplace = {};
-			// for each ts in formula append data in a unique array called formulaSamples
-			for (var j=0; j<curves[curveIndex].response.length; j++) {
-				for (var k=0; k<data.length; k++) {
-					if(formulaDebug) alert('data[k].ts_id: '+data[k].ts_id+'== curves[curveIndex].response[j]: '+curves[curveIndex].response[j]);
-					if (data[k].ts_id==curves[curveIndex].response[j] && data[k].xaxis==curves[curveIndex].x) {
-						for (var l=0; l<data[k].data.length; l++) {
-							formulaSamples.push({'ts':data[k].ts_id,'label':data[k].label,'x':data[k].data[l][0],'y':data[k].data[l][1]});
-						}
-					}
-				}
-			}
-			if (formulaDebug) alert('formulaSamples.sort(SortByTime)');
-			formulaSamples.sort(SortByTime);
-			if (formulaDebug) print_r(formulaSamples[0]);
-			// for each timestamp eval formula with last value of each ts 
-			for (var j=0; j<formulaSamples.length; j++) {
-				formulaReplace['$'+formulaSamples[j].ts+'$'] = formulaSamples[j].y;
-				labelReplace['$'+formulaSamples[j].ts+'$'] = formulaSamples[j].label;
-				if (j<formulaSamples.length-1 && formulaSamples[j].x==formulaSamples[j+1].x) continue;
-				// if (formulaDebug) alert('j: '+j+', formulaSamples[j].ts: '+formulaSamples[j].ts);
-				f = strtr(curves[curveIndex].request, formulaReplace);
-				if (formulaDebug) alert('x: '+formulaSamples[j].x+', f: '+f);
-				if (f.indexOf('$')>=0) continue;
-				y = mathEval(f);
-				if (typeof(y) === 'undefined' || isNaN(y)) continue;
-				if (formulaDebug) alert('eval(f): '+y+', type: '+typeof(y));
-				formulaData.push([formulaSamples[j].x,y]);
-			}
-			curves[curveIndex].response = newData.push({'label': strtr(curves[curveIndex].request, labelReplace),'xaxis':curves[curveIndex].x,'yaxis':curves[curveIndex].y,'data': formulaData});
-			if (formulaDebug) print_r(newData);
-		}
-		return newData;*/
+			data.splice(d0, 1);
+			curves.splice(d0, 1);
+			// console.log('data ',data);
+		} 
+		return data;
 	}
 
 	function plotTs(tsRequest, ts2, start, stop){
@@ -1420,8 +1425,11 @@
 					// console.log('curves', curves, evalFormulae(data.ts));
 					plotData(evalFormulae(data.ts), data.event, data.forecast, start, stop);
 				})
-				.fail(function() {
-					document.getElementById('placeholder').innerHTML = "&nbsp;&nbsp;&nbsp; ERROR: no data found, please double check start, stop and timeseries selection";
+				.fail(function(jqxhr, textStatus, error) {
+					console.log('fail',jqxhr, textStatus, error);
+					alert(textStatus);
+					alert(error);
+					document.getElementById('placeholder').innerHTML = "&nbsp;&nbsp;&nbsp; ERROR: no data found, please double check start, stop and timeseries selection, "+textStatus+ ' - '+error;
 				})
 				.always(function() {
 					if (typeof document.getElementById('placeholder').children[0] != 'undefined') document.getElementById('placeholder').children[0].src = '';
@@ -1453,8 +1461,9 @@
 				}
 				plotData(evalFormulae(data.ts), data.event, data.forecast, start, stop);
 			})
-			.fail(function() {
-				document.getElementById('placeholder').innerHTML = "&nbsp;&nbsp;&nbsp; ERROR: no data found, please double check start, stop and timeseries selection";
+			.fail(function(jqxhr, textStatus, error) {
+				console.log('fail',jqxhr.status, textStatus, error);
+				document.getElementById('placeholder').innerHTML = "&nbsp;&nbsp;&nbsp; ERROR: "+jqxhr.status+' '+error;
 			})
 			.always(function() {
 				if (typeof document.getElementById('placeholder').children[0] != 'undefined') document.getElementById('placeholder').children[0].src = '';
@@ -1976,6 +1985,14 @@
 					activePoint = this.series.data.indexOf( this.point); 
 					var myDate = new Date(this.x);
 					var prestart = '';
+					if (parameters.correlation != null) {
+						for (var k=0; k<myPlotClass[0].data.length; k++) {
+							if (myPlotClass[0].data[k][0] == this.x) {
+								myDate = new Date(myPlotClass[0].data[k][2]);
+								return myDate.format('Y-m-d H:i:s') + ' x: ' + myPlotClass[0].data[k][0] + ' y: ' + myPlotClass[0].data[k][1];
+							}
+						}
+					}
 					for (var j=0; j<myPlotClass.length; j++) {
 					// for (var j in myPlotClass) {
 						if (myPlotClass[j].name == this.series.name && 
@@ -2022,7 +2039,7 @@
 			series: myPlotClass
 		}
 		for (var i=1; i<=xaxis_max_index; i++) {
-			chartConfig.xAxis[i-1] = {type: 'datetime', gridLineWidth: 0,lineColor: '#000',title: {text: startArray[i-1] + ' - ' + stopArray[i-1]},opposite: xaxis_max_index==2 && i==2};
+			chartConfig.xAxis[i-1] = {type: (parameters.correlation == null? 'datetime': 'linear'), gridLineWidth: 0,lineColor: '#000',title: {text: startArray[i-1] + ' - ' + stopArray[i-1]},opposite: xaxis_max_index==2 && i==2};
 		}
 		if (typeof(window.$_GET['hideMenu']) !== 'undefined') {
 			chartConfig.navigation={buttonOptions:{enabled: false}};
