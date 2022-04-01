@@ -723,6 +723,7 @@
 	if ($show['error']) {
 		$messages = array();
 		$ts_counter = 0;
+		$data = array();
 		foreach ($ts as $xaxis=>$ts_array) {
 			if (empty($ts_array)) continue;
 			$interval = $stop_timestamp[$xaxis-1] - strtotime($start[$xaxis-1]);
