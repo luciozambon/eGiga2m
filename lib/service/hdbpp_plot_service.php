@@ -147,7 +147,7 @@
 				$querytime += microtime(true);
 				if (isset($_REQUEST['debug'])) debug($query, 'query');
 				while ($unit_row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
-					if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row'); debug(json_decode($unit_row['enum_labels']));}
+					if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row1'); $jd = json_decode($unit_row['enum_labels']); debug($jd, 'jd');}
 					$data_buffer['display_unit'] = $unit_row['display_unit']=='No display unit'? '': $unit_row['display_unit'];
 					if ($unit_row['enum_labels']!='[]') $data_buffer['categories'] = json_decode($unit_row['enum_labels']);
 				}
@@ -185,12 +185,13 @@
 				$data_buffer['data'] = array('eGiga2m_separator');
 				$data_buffer['query_time'] = 'eGiga2m_querytime';
 				$querybase = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$thresh ORDER BY $orderby$last";
-				$start = 0;
+				$start_limit = 0;
 				$env = explode('"eGiga2m_separator"', json_encode($data_buffer));
 				echo $env[0];
 				$data_separator = '';
 				$sample = -1;
 				$oversampled = false;
+				if ($decimationSamples > $num_rows) $decimation = 'none';
 				// limit to less than 1000 samples http://api.highcharts.com/highcharts#plotOptions.series.turboThreshold
 				if (($decimationSamples > 0) && ($decimation !== 'none')) {
 					$sampling_every = ceil($num_rows/$decimationSamples);
@@ -202,8 +203,8 @@
 				}
 				$maxv = $minv = array();
 				for (;;) {
-					$query = "$querybase LIMIT $start , $recordsPerIteration";
-					if (isset($_REQUEST['debug'])) debug($query);
+					$query = "$querybase LIMIT $start_limit , $recordsPerIteration";
+					if (isset($_REQUEST['debug'])) debug($query, 'query');
 					// debug($query); exit(0);
 					$querytime -= microtime(true);
 					$res = mysqli_query($db, $query);
@@ -225,76 +226,74 @@
 							$data_separator = ',';
 						}
 					}
-					else {
-						$avgbuf = $avgcount = 0;
-						if (isset($_REQUEST['dump'])) {echo "<br>\nINSERT INTO $table (data_time, att_conf_id, value_r) VALUES "; $dumprow=0;}
-						$querytime -= microtime(true);
-						$rows = mysqli_fetch_all($res, MYSQLI_ASSOC);
-						$querytime += microtime(true);
-						if ($oversampled) {
-							if (isset($_REQUEST['debug'])) debug($row, "oversampled, decimation: $decimation, row");
-							if ($decimation=='downsample') {
-								for ($i=0; $i<$recordsPerIteration; $i+=$sampling_every) {
-									if (!isset($rows[$i])) break;
-									$row = $rows[$i];
-									// echo $data_separator.$i.json_encode($rows[$i])."\n";
-									echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
+					$avgbuf = $avgcount = 0;
+					if (isset($_REQUEST['dump'])) {echo "<br>\nINSERT INTO $table (data_time, att_conf_id, value_r) VALUES "; $dumprow=0;}
+					$querytime -= microtime(true);
+					$rows = mysqli_fetch_all($res, MYSQLI_ASSOC);
+					$querytime += microtime(true);
+					if ($oversampled) {
+						if (isset($_REQUEST['debug'])) debug($row, "oversampled, decimation: $decimation, row");
+						if ($decimation=='downsample') {
+							for ($i=0; $i<$recordsPerIteration; $i+=$sampling_every) {
+								if (!isset($rows[$i])) break;
+								$row = $rows[$i];
+								// echo $data_separator.$i.json_encode($rows[$i])."\n";
+								echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
+								$data_separator = ',';
+							}
+						}
+						else if ($decimation=='avg') {
+							foreach ($rows as $row) {
+								$sample++;
+								if (($sample+1) % $sampling_every) {
+									if ($row['val'] !== NULL) {
+										$avgbuf += $row['val']-0;
+										$avgcount++;
+									}
+								}
+								else {
+									echo $data_separator.json_encode(array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL));
 									$data_separator = ',';
-								}
-							}
-							else if ($decimation=='avg') {
-								foreach ($rows as $row) {
-									$sample++;
-									if (($sample+1) % $sampling_every) {
-										if ($row['val'] !== NULL) {
-											$avgbuf += $row['val']-0;
-											$avgcount++;
-										}
-									}
-									else {
-										echo $data_separator.json_encode(array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL));
-										$data_separator = ',';
-										$avgbuf = $avgcount = 0;
-									}
-								}
-							}
-							else if ($decimation=='maxmin') {
-								foreach ($rows as $row) {
-									$sample++;
-									$v = $row['val']-0;
-									if (isset($max) && !is_null($max)) {
-										if ($v>$max) $max = $v;
-										if ($v<$min) $min = $v;
-									}
-									else $max = $min = $v;
-									// if (is_null($row['val'])) $max = $min = NULL;
-									if (($sample+1) % $sampling_every) {
-										if ($row['val'] !== NULL) {
-											$avgbuf += $v;
-											$avgcount++;
-										}
-									}
-									else {
-										echo $data_separator.json_encode(array($row['time']*1000, $min)).','.json_encode(array($row['time']*1000, $max));
-										$data_separator = ',';
-										unset($max);
-									}
+									$avgbuf = $avgcount = 0;
 								}
 							}
 						}
-						else {
-							if (isset($_REQUEST['debugjson'])) {$data_buffer['data'] = array('eGiga2m_separator'); $buf = explode('"eGiga2m_separator"', json_encode($data_buffer)); echo '<pre>';print_r($buf);die('</pre>');}
+						else if ($decimation=='maxmin') {
 							foreach ($rows as $row) {
-								if (isset($_REQUEST['debug'])) {debug($row, 'row');debug($type, 'type');}
-								else {
-									echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
-									$data_separator = ',';
+								$sample++;
+								$v = $row['val']-0;
+								if (isset($max) && !is_null($max)) {
+									if ($v>$max) $max = $v;
+									if ($v<$min) $min = $v;
 								}
-								if (function_exists('memory_get_usage')) {
-									if ($memory_limit-memory_get_usage() < 8200) {
-										header("HTTP/1.1 507 Insufficient Storage");
-										exit();
+								else $max = $min = $v;
+								// if (is_null($row['val'])) $max = $min = NULL;
+								if (($sample+1) % $sampling_every) {
+									if ($row['val'] !== NULL) {
+										$avgbuf += $v;
+										$avgcount++;
 									}
+								}
+								else {
+									echo $data_separator.json_encode(array($row['time']*1000, $min)).','.json_encode(array($row['time']*1000, $max));
+									$data_separator = ',';
+									unset($max);
+								}
+							}
+						}
+					}
+					else {
+						if (isset($_REQUEST['debugjson'])) {$data_buffer['data'] = array('eGiga2m_separator'); $buf = explode('"eGiga2m_separator"', json_encode($data_buffer)); echo '<pre>';print_r($buf);die('</pre>');}
+						foreach ($rows as $row) {
+							if (isset($_REQUEST['debug'])) {debug($row, 'row');debug($type, 'type');}
+							else {
+								echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
+								$data_separator = ',';
+							}
+							if (function_exists('memory_get_usage')) {
+								if ($memory_limit-memory_get_usage() < 8200) {
+									header("HTTP/1.1 507 Insufficient Storage");
+									exit();
 								}
 							}
 						}
@@ -304,7 +303,7 @@
 					if (mysqli_num_rows($res)<$recordsPerIteration) break;
 					unset($res);
 					unset($rows);
-					$start += $recordsPerIteration;
+					$start_limit += $recordsPerIteration;
 				}
 				echo strtr($env[1],array('"eGiga2m_querytime"'=>$querytime));
 			}
@@ -400,7 +399,7 @@
 			$querytime += microtime(true);
 			if (isset($_REQUEST['debug'])) debug($query, 'query');
 			while ($unit_row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
-				if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row'); debug(json_decode($unit_row['enum_labels']));}
+				if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row2'); $jdenum = json_decode($unit_row['enum_labels']); debug($jdenum, 'jdenum');}
 				$big_data[$ts_counter]['display_unit'] = $unit_row['display_unit']=='No display unit'? '': $unit_row['display_unit'];
 				if ($unit_row['enum_labels']!='[]') $big_data[$ts_counter]['categories'] = json_decode($unit_row['enum_labels']);
 			}
