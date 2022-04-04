@@ -127,6 +127,7 @@
 		if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
 		echo '{"ts":[';
 		$tsbreak = '';
+		$env_separator = '';
 		foreach ($ts as $xaxis=>$ts_array) {
 			if (empty($ts_array)) continue;
 			$start_timestamp = strtotime($start[$xaxis-1]);
@@ -187,7 +188,8 @@
 				$querybase = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$thresh ORDER BY $orderby$last";
 				$start_limit = 0;
 				$env = explode('"eGiga2m_separator"', json_encode($data_buffer));
-				echo $env[0];
+				echo $env_separator.$env[0];
+				$env_separator = ',';
 				$data_separator = '';
 				$sample = -1;
 				$oversampled = false;
