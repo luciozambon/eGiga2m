@@ -126,8 +126,7 @@
 		$skipdomain, $fetchtime, $pretimer;
 		if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
 		echo '{"ts":[';
-		$tsbreak = '';
-		$env_separator = '';
+		$tsbreak = $envseparator = '';
 		foreach ($ts as $xaxis=>$ts_array) {
 			if (empty($ts_array)) continue;
 			$start_timestamp = strtotime($start[$xaxis-1]);
@@ -148,7 +147,7 @@
 				$querytime += microtime(true);
 				if (isset($_REQUEST['debug'])) debug($query, 'query');
 				while ($unit_row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
-					if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row1'); $jd = json_decode($unit_row['enum_labels']); debug($jd, 'jd');}
+					if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row'); debug(json_decode($unit_row['enum_labels']));}
 					$data_buffer['display_unit'] = $unit_row['display_unit']=='No display unit'? '': $unit_row['display_unit'];
 					if ($unit_row['enum_labels']!='[]') $data_buffer['categories'] = json_decode($unit_row['enum_labels']);
 				}
@@ -187,9 +186,10 @@
 				$data_buffer['query_time'] = 'eGiga2m_querytime';
 				$querybase = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}$thresh ORDER BY $orderby$last";
 				$start_limit = 0;
-				$env = explode('"eGiga2m_separator"', json_encode($data_buffer));
-				echo $env_separator.$env[0];
-				$env_separator = ',';
+				if (isset($_REQUEST['debug'])) debug($data_buffer,'data_buffer');
+				$env = explode('"eGiga2m_separator"', json_encode($data_buffer, JSON_INVALID_UTF8_IGNORE));
+				echo $envseparator.$env[0];
+				$envseparator = ',';
 				$data_separator = '';
 				$sample = -1;
 				$oversampled = false;
@@ -204,6 +204,7 @@
 					// echo "recordsPerIteration: $recordsPerIteration<br>\n"; exit();
 				}
 				$maxv = $minv = array();
+				unset($max);
 				for (;;) {
 					$query = "$querybase LIMIT $start_limit , $recordsPerIteration";
 					if (isset($_REQUEST['debug'])) debug($query, 'query');
@@ -224,7 +225,7 @@
 							if (round($conf_row['time'])<strtotime($start[$xaxis-1]." $timezone"))
 							echo $data_separator.json_encode(array('x'=>strtotime($start[$xaxis-1]." $timezone")*1000,'y'=>$conf_row['val']-0, 
 							'marker'=>array('symbol'=>"url($host/img/prestart.png)"), 
-							'prestart'=>$conf_row['time']*1000));
+							'prestart'=>$conf_row['time']*1000), JSON_INVALID_UTF8_IGNORE);
 							$data_separator = ',';
 						}
 					}
@@ -240,7 +241,7 @@
 								if (!isset($rows[$i])) break;
 								$row = $rows[$i];
 								// echo $data_separator.$i.json_encode($rows[$i])."\n";
-								echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
+								echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0), JSON_INVALID_UTF8_IGNORE);
 								$data_separator = ',';
 							}
 						}
@@ -254,13 +255,14 @@
 									}
 								}
 								else {
-									echo $data_separator.json_encode(array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL));
+									echo $data_separator.json_encode(array($row['time']*1000, $avgcount>0? $avgbuf/$avgcount: NULL), JSON_INVALID_UTF8_IGNORE);
 									$data_separator = ',';
 									$avgbuf = $avgcount = 0;
 								}
 							}
 						}
 						else if ($decimation=='maxmin') {
+							if (isset($_REQUEST['debug'])) {echo "decimation==maxmin max: $max, min: $min<br>".json_encode($rows[0]).'<br>'.json_encode($rows[1]).'<br>';}
 							foreach ($rows as $row) {
 								$sample++;
 								$v = $row['val']-0;
@@ -277,7 +279,7 @@
 									}
 								}
 								else {
-									echo $data_separator.json_encode(array($row['time']*1000, $min)).','.json_encode(array($row['time']*1000, $max));
+									echo $data_separator.json_encode(array($row['time']*1000, $min), JSON_INVALID_UTF8_IGNORE).','.json_encode(array($row['time']*1000, $max), JSON_INVALID_UTF8_IGNORE);
 									$data_separator = ',';
 									unset($max);
 								}
@@ -285,11 +287,11 @@
 						}
 					}
 					else {
-						if (isset($_REQUEST['debugjson'])) {$data_buffer['data'] = array('eGiga2m_separator'); $buf = explode('"eGiga2m_separator"', json_encode($data_buffer)); echo '<pre>';print_r($buf);die('</pre>');}
+						if (isset($_REQUEST['debugjson'])) {$data_buffer['data'] = array('eGiga2m_separator'); $buf = explode('"eGiga2m_separator"', json_encode($data_buffer, JSON_INVALID_UTF8_IGNORE)); echo '<pre>';print_r($buf);die('</pre>');}
 						foreach ($rows as $row) {
 							if (isset($_REQUEST['debug'])) {debug($row, 'row');debug($type, 'type');}
 							else {
-								echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0));
+								echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0), JSON_INVALID_UTF8_IGNORE);
 								$data_separator = ',';
 							}
 							if (function_exists('memory_get_usage')) {
@@ -401,7 +403,7 @@
 			$querytime += microtime(true);
 			if (isset($_REQUEST['debug'])) debug($query, 'query');
 			while ($unit_row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
-				if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row2'); $jdenum = json_decode($unit_row['enum_labels']); debug($jdenum, 'jdenum');}
+				if (isset($_REQUEST['debug'])) {debug($unit_row, 'unit_row'); debug(json_decode($unit_row['enum_labels']));}
 				$big_data[$ts_counter]['display_unit'] = $unit_row['display_unit']=='No display unit'? '': $unit_row['display_unit'];
 				if ($unit_row['enum_labels']!='[]') $big_data[$ts_counter]['categories'] = json_decode($unit_row['enum_labels']);
 			}
