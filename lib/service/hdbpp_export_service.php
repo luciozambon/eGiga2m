@@ -35,6 +35,16 @@
 		return $value;
 	}
 
+	$timeformat = 'data_time AS';
+	if (isset($_REQUEST['timeformat'])) {
+		if ($_REQUEST['timeformat']=='noseconds') {
+			$timeformat = "DATE_FORMAT(UNIX_TIMESTAMP(data_time),'%Y-%m-%d %H:%i') AS ";
+		}
+		else {
+			$timeformat = "DATE_FORMAT(data_time,".quote_smart($_REQUEST['timeformat']).") AS ";
+		}
+	}
+
 	// ----------------------------------------------------------------
 	// debug a variable
 	function debug($var, $name='')
@@ -200,7 +210,9 @@
 		else {
 			emit_output("{$nl}".($data_type=='itx'? $t+2082844800: date("Y-m-d H:i:s", $t)));
 			foreach ($v as $val) {
-				emit_output($separator.(is_null($val)? $empty_val: sprintf($format, $val)));
+				$vf = sprintf($format, $val);
+				if ($_REQUEST['decimal']==',') $vf = strtr($vf, array('.'=>','));
+				emit_output($separator.(is_null($val)? $empty_val: $vf));
 			}
 		}
 	}
@@ -398,7 +410,7 @@
 			}
 		}
 		if (isset($_REQUEST['debug'])) debug($memory_limit);
-		$format = '%8.5e';
+		$format = isset($_REQUEST['numberformat']) && strlen($_REQUEST['numberformat']<10)? $_REQUEST['numberformat']: '%8.5e';
 		$time = 'UNIX_TIMESTAMP(data_time) AS time';
 		require_once strtr(dirname(__FILE__),array('lib/service'=>'lib/PHPExcel')).'/PHPExcel.php';
 		$objPHPExcel = new PHPExcel();
@@ -485,9 +497,10 @@
 	// ----------------------------------------------------------------
 	// emit igor,csv,matlab statistics
 	function emit_data($data_type) {
-		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $skipdomain, $data_type_result, $nullValue;
+		global $ts, $db, $pretimer, $start, $stop, $output_buffer, $skipdomain, $data_type_result, $nullValue, $timeformat;
 		if (isset($_REQUEST['debug'])) $t0 = microtime(TRUE);
 		$memory_limit = ini_get('memory_limit');
+		$filename = isset($_REQUEST['filename'])? $_REQUEST['filename']: 'egiga2m.'.$_REQUEST['format'];
 		if (preg_match('/^(\d+)(.)$/', $memory_limit, $matches)) {
 			if ($matches[2] == 'M') {
 				$memory_limit = $matches[1] * 1024 * 1024; // nnnM -> nnn MB
@@ -496,8 +509,8 @@
 			}
 		}
 		if (isset($_REQUEST['debug'])) debug($memory_limit);
-		$format = '%8.5e';
-		$time = 'UNIX_TIMESTAMP(data_time) AS timestamp, data_time AS time, data_time';
+		$format = isset($_REQUEST['numberformat']) && strlen($_REQUEST['numberformat']<10)? $_REQUEST['numberformat']: '%8.5e';
+		$time = "UNIX_TIMESTAMP(data_time) AS timestamp, {$timeformat} time, data_time";
 		if ($data_type=='itx') {
 			$nl = "\r\n";
 			$separator = "\t";
@@ -511,7 +524,7 @@
 			$nl = "\n";
 			$separator = isset($_REQUEST['separator'])? $_REQUEST['separator']: ";";
 			if (!isset($_REQUEST['debug'])){
-				header("Content-Disposition: attachment; filename=eGiga2m.csv");
+				header("Content-Disposition: attachment; filename=$filename");
 				header("Content-Type: application/csv");
 			}
 			emit_output("timestamp");
@@ -600,20 +613,23 @@
 					if (isset($_REQUEST['ignore_error'])) {unset($row); break;}
 					else die("Fatal ERROR, too much memory used, num_rows: ".mysqli_num_rows($res).", memory_usage: ".memory_get_usage()."<br>\n");
 				}
+				$vf = sprintf($format, $row['val']-0);
+				if ($_REQUEST['decimal']==',') $vf = strtr($vf, array('.'=>','));
 				if ($old_time[$row['ts_index']]==$row['timestamp']) {
 					if ($last_id==$row['ts_index']) continue; 
-					for ($i=$last_id+1; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
-					if ($last_id<$max_id) emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
+					for ($i=$last_id+1; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);}
+					if ($last_id<$max_id) emit_output($separator.(is_numeric($row['val'])? $vf: $nullValue));
 				}
 				else {
-					for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
-					emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: (isset($_REQUEST['timestamp'])? strtotime($row['time']): $row['time'])));
+					for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);}
+					$timef = isset($_REQUEST['timestamp'])? strtotime($row['time']): $row['time'];
+					emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: $timef));
 					for ($i=0; $i<$row['ts_index']; $i++) {emit_output($separator.$old_data[$i]);} 
 					// if (isset($_REQUEST['debug'])) {debug($row, 'row'); debug(is_null($row['val'])); debug(is_numeric($row['val']));}
-					emit_output($separator.(is_numeric($row['val'])? sprintf($format, $row['val']-0): $nullValue));
+					emit_output($separator.(is_numeric($row['val'])? $vf: $nullValue));
 				}
 				$old_time[$row['ts_index']] = $row['timestamp'];
-				$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? sprintf($format, $row['val']-0): ($data_type=='itx'? "NAN": NULL);
+				$old_data[$row['ts_index']] = isset($_REQUEST['zoh'])? $vf: ($data_type=='itx'? "NAN": NULL);
 				$last_id = $row['ts_index'];
 			}
 			for ($i=$last_id+1; $i<=$max_id; $i++) {emit_output($separator.$old_data[$i]);} 
