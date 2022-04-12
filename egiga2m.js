@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.18.1';
+	var version = '1.18.2';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -1436,7 +1436,7 @@
 				});
 			}
 			else if (ts.length>0) $.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
-				// console.log('$.get data',data, 'ts', ts);
+				// console.log('$.get data',data, '.get()', plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event);
 				for (var i=0; i<data.ts.length; i++) {
 					curves.push({request: data.ts[i].ts_id, x: ''+data.ts[i].xaxis, y: data.ts[i].yaxis, response: data.ts[i].ts_id});
 				}
@@ -1787,7 +1787,7 @@
 	function hcPlot(data, eventData, forecastData, startArray, stopArray){
 		$("#canvas").hide();
 		$("#placeholder").show();
-		// console.log('data', data)
+		// console.log('hcPlot(), data', data, 'curves', curves)
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		if (height < 300) height = 300;
@@ -1801,7 +1801,8 @@
 		}
 		var xaxis_max_index = 1;
 		var yaxis_max_index = 1;
-		for (var j in curves) {
+		for (var j=0; j<data.length; j++) {
+			curves[j].request = data[j].ts_id;
 			if (yaxis_max_index < curves[j].y) yaxis_max_index = curves[j].y;
 		}
 		var kk=0;
@@ -1884,10 +1885,11 @@
 				}
 			});
 		}
-		// console.log('myPlotClass: ',myPlotClass);
-		for (var j in eventData) {
+		// console.log('eventData: ',eventData);
+		if (eventData) for (var j in eventData) {
 			if (j=='clone') continue;
 			if (typeof(fade_level[j]) === 'undefined') continue;
+			// console.log('eventData[j][data]: ',eventData[j]['data'], 'j',j);
 			if (typeof(eventData[j]['label']) === 'undefined') {
 				myPlotClass.push({
 					name: j,
@@ -2039,7 +2041,7 @@
 			series: myPlotClass
 		}
 		for (var i=1; i<=xaxis_max_index; i++) {
-			chartConfig.xAxis[i-1] = {type: (parameters.correlation == null? 'datetime': 'linear'), gridLineWidth: 0,lineColor: '#000',title: {text: startArray[i-1] + ' - ' + stopArray[i-1]},opposite: xaxis_max_index==2 && i==2};
+			chartConfig.xAxis[i-1] = {type: (parameters.correlation == null && curves[0].request.indexOf('FFT')==-1? 'datetime': 'linear'), gridLineWidth: 0,lineColor: '#000',title: {text: startArray[i-1] + ' - ' + stopArray[i-1]},opposite: xaxis_max_index==2 && i==2};
 		}
 		if (typeof(window.$_GET['hideMenu']) !== 'undefined') {
 			chartConfig.navigation={buttonOptions:{enabled: false}};
