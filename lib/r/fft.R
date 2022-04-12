@@ -1,9 +1,15 @@
+maxdata <- 100000
 args <- commandArgs(trailingOnly=TRUE)
 
 library("stringr")   
 library("jsonlite")
 # print(str_replace_all(args[1], "%26", "&"))
 btc <- jsonlite::fromJSON(str_replace_all(args[1], "%26", "&"), simplifyVector = TRUE)
+if (length(btc$datetime) > maxdata) {
+	print("too many samples in input time series, max:")
+	print(maxdata)
+	stop()
+}
 print(btc)
 # plot(btc$value)
 
