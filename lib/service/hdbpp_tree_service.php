@@ -67,10 +67,23 @@
 				if (($dim=="array") and ($icon == "./img/y1axis.png")) $icon = "./img/surface.png";
 				if (isset($_REQUEST['debug'])) {debug($key, 'key'); debug($tree_base, 'tree_base');}
 			}
-			return array('title' => basename($title), 'key'=> $row['att_conf_id'], "folder"=> false, "isArray" => $dim=="array", "lazy" => false, "icon"=> $icon);
+			$res2 = mysqli_query($db, "SELECT * FROM att_history WHERE att_conf_id=".$row['att_conf_id']." ORDER BY time DESC LIMIT 20");
+			$d = mysqli_fetch_all($res2, MYSQLI_ASSOC);
+			$logging = !empty($d) && $d['att_history_event_id']=='3';
+			$title = basename($title);
+			if (!$logging) {
+				if (empty($d)) $alt = 'archiving has never been active'; else {
+					$alt = 'archiving not active now';
+					foreach ($d as $data) {
+						if ($data['att_history_event_id']=='3') {$alt = 'archiving not active since '.$t; break;}
+						$t = $data['time'];
+					}
+				}
+				$title = "<span style='text-decoration: line-through;' title='$alt'>$title</span>";
+			}
+			return array('title' => $title, 'key'=> $row['att_conf_id'], "folder"=> false, "isArray" => $dim=="array", "lazy" => false, "icon"=> $icon);
 		}
 		$res2 = mysqli_query($db, "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$tree_index) AS description FROM att_conf WHERE att_name LIKE '$key%' ORDER BY description");
-		// echo "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$tree_index) AS description FROM att_conf WHERE att_name LIKE '$key%' ORDER BY description;<br>\n";
 		if ($res2 !== false) while ($row = mysqli_fetch_array($res2, MYSQLI_ASSOC)) {
 			$key2 = $row['description'];
 			$title2 = strtr($row['description'], $skipdomain);
@@ -78,14 +91,28 @@
 				$children[] = expand_children($tree_base, $key2, $title2, $tree_index+1);
 			}
 			else {
+				$title2 = basename($title2);
 				if ($tree_index==7) {
 					$res = mysqli_query($db, "SELECT data_type, att_conf.att_conf_id FROM att_conf,att_conf_data_type WHERE att_name = '$key2' AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id ORDER BY att_name");
 					$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
 					list($dim, $type, $io) = explode('_', $row['data_type']);
-					$children[] = array('title' => basename($title2), 'key'=>$row['att_conf_id'], "folder" => false, "isArray" => $dim=="array", "lazy" => false, "icon" => "./img/y0axis.png");
+					$res3 = mysqli_query($db, "SELECT * FROM att_history WHERE att_conf_id=".$row['att_conf_id']." ORDER BY time DESC LIMIT 20");
+					$d = mysqli_fetch_all($res3, MYSQLI_ASSOC);
+					$logging = !empty($d) && $d['att_history_event_id']=='3';
+					if (!$logging) {
+						if (empty($d)) $alt = 'archiving has never been active'; else {
+							$alt = 'archiving not active now';
+							foreach ($d as $data) {
+								if ($data['att_history_event_id']=='3') {$alt = 'archiving not active since '.$t; break;}
+								$t = $data['time'];
+							}
+						}
+						$title2 = "<span style='text-decoration: line-through;' title='$alt'>$title2</span>";
+					}
+					$children[] = array('title' => $title2, 'key'=>$row['att_conf_id'], "folder" => false, "isArray" => $dim=="array", "lazy" => false, "icon" => "./img/y0axis.png");
 				}
 				else {
-					$children[] = array('title' => basename($title2), 'key'=>$key2, "folder" => true, "lazy" => true, "expanded" => false);
+					$children[] = array('title' => $title2, 'key'=>$key2, "folder" => true, "lazy" => true, "expanded" => false);
 				}
 			}
 		}
@@ -329,8 +356,9 @@
 	else {
 		$n = substr_count($_REQUEST['key'], '/') + 2;
 		if ($n<7) {
-			$res = mysqli_query($db, "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$n) AS description FROM att_conf WHERE att_name LIKE ".quote_smart($_REQUEST['key'].'/%')." ORDER BY description");
-			if (isset($_REQUEST['debug'])) echo "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$n) AS description FROM att_conf WHERE att_name LIKE ".quote_smart($_REQUEST['key'].'%')." ORDER BY description\n";
+			$query = "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$n) AS description FROM att_conf WHERE att_name LIKE ".quote_smart($_REQUEST['key'].'/%')." ORDER BY description";
+			$res = mysqli_query($db, $query);
+			if (isset($_REQUEST['debug'])) echo "$query;<br>\n";
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				$key = $row['description'];
 				$title = strtr($row['description'], $skipdomain);
@@ -338,13 +366,28 @@
 			}
 		}
 		else {
-			$res = mysqli_query($db, "SELECT * FROM att_conf,att_conf_data_type WHERE att_name LIKE ".quote_smart($_REQUEST['key'].'/%')." AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id ORDER BY att_name");
-			if (isset($_REQUEST['debug'])) echo "SELECT * FROM att_conf,att_conf_data_type WHERE att_name LIKE ".quote_smart($_REQUEST['key'].'/%')." AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id ORDER BY att_name";
+			$query = "SELECT * FROM att_conf,att_conf_data_type WHERE att_name LIKE ".quote_smart($_REQUEST['key'].'/%')." AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id ORDER BY att_name";
+			$res = mysqli_query($db, $query);
+			if (isset($_REQUEST['debug'])) echo "$query;<br>\n";
 			while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
 				list($dim, $type, $io) = explode('_', $row['data_type']);
 				$key = $row['att_conf_id'];
 				$title = strtr($row['att_name'], $skipdomain);
-				$fancyConfig[] = array('title' => basename($title), 'key'=> $key, "lazy" => false, "folder"=> false, "isArray" => $dim=="array", "icon"=>"./img/y0axis.png");
+				$res2 = mysqli_query($db, "SELECT * FROM att_history WHERE att_conf_id=".$row['att_conf_id']." ORDER BY time DESC LIMIT 20");
+				$d = mysqli_fetch_all($res2, MYSQLI_ASSOC);
+				$title = basename($title);
+				$logging = !empty($d) && $d[0]['att_history_event_id']=='3';	
+				if (!$logging) {
+					if (empty($d)) $alt = 'archiving has never been active'; else {
+						$alt = 'archiving not active now';
+						foreach ($d as $data) {
+							if ($data['att_history_event_id']=='3') {$alt = 'archiving not active since '.$t; break;}
+							$t = $data['time'];
+						}
+					}
+					$title = "<span style='text-decoration: line-through;' title='$alt'>$title</span>";
+				}
+				$fancyConfig[] = array('title' => $title, 'key'=> $key, "lazy" => false, "folder"=> false, "isArray" => $dim=="array", "icon"=>"./img/y0axis.png");
 			}
 		}
 	}
