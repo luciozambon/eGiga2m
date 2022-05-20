@@ -53,10 +53,30 @@
 	if (isset($_REQUEST['listhtml'])) {
 		$d = scandir('.');
 		$list = array();
-		echo "<h2>List of time series analysis tools</h2>";
+		echo "<!DOCTYPE html>
+<html lang='en'><head>
+	<meta http-equiv='content-type' content='text/html; charset=UTF-8'>
+	<meta charset='utf-8'>
+	<meta http-equiv='X-UA-Compatible' content='IE=edge'>
+	<meta name='viewport' content='width=device-width, initial-scale=1'>
+	<meta name='description' content='Timeseries analysis tools'>
+	<meta name='author' content='LZ'>
+	<link rel='icon' href='https://www.elettra.eu/favicon.png'>
+
+	<title>eGiga2m - Analysis</title>
+	<script src='../json/json2.js'></script>
+	<link href='../bootstrap/bootstrap.css' rel='stylesheet'>
+	<link href='../bootstrap/bootstrap-theme.css' rel='stylesheet'>
+	<link href='../bootstrap/theme.css' rel='stylesheet'>
+	<script src='../bootstrap/ie10-viewport-bug-workaround.js'></script>
+</head>
+<body style='margin: 10px; padding: 0;'>
+		<h2>List of time series analysis tools</h2>";
+		
+		
 		foreach ($d as $f) {
 			$d = '';
-			if (strpos($f,'.php')!==false and strpos($f, 'analysis.php')===false && strpos($f, 'conf.php')===false && strpos($f, 'test')===false) {
+			if (strpos($f,'.php')!==false && strpos($f, 'analysis.php')===false && strpos($f, 'formula.php')===false && strpos($f, 'conf.php')===false && strpos($f, 'test')===false) {
 				$c = file('./'.$f);
 				foreach ($c as $l) {if (strpos($l, 'description')!==false && strpos($l, 'array(')===false) {$a = explode('=>', $l); $d = trim($a[1], ",'\" \n\r\t\v\x00");}}
 				echo "<h3><a href='./$f'>".strtr($f, array('.php'=>''))."</a></h3>$d<br><br>\n";
@@ -66,8 +86,8 @@
 	
 	// ----------------------------------------------------------------
 	// prompt parameters
-	function parameters_request(&$parameters) {
-		if (empty($_REQUEST) || empty($_REQUEST['start']) || (empty($_REQUEST['attr']) && empty($_REQUEST['ts']))) {
+	function parameters_prompt(&$parameters) {
+		if (empty($_REQUEST) || (empty($_REQUEST['data']) && (empty($_REQUEST['start']) || (empty($_REQUEST['attr']) && empty($_REQUEST['ts']))))) {
 			$param = '';
 			foreach ($parameters as $i=>$p) {
 				if (!is_array($p)) continue;
@@ -85,7 +105,7 @@
 					$param .= "<input type='checkbox' name='$i'$default><br><br>\n";
 				}
 				else {
-					$param .= "<input type='text' name='$i' value='{$p['default']}'><br><br>\n";
+					$param .= "<input type='text' name='$i' value='{$p['default']}'><br><span style='font-size: 80%'>{$p['description']}</span><br><br>\n";
 				}
 			}
 			$operator = pathinfo($_SERVER['SCRIPT_FILENAME']);
@@ -155,9 +175,11 @@
 			else if (is_array($p['type'])) $parameters[$i]['value'] = in_array($_REQUEST[$i], $p['type'])? $_REQUEST[$i]: $p['default'];
 			else $parameters[$i]['value'] = strip_tags($_REQUEST[$i]);
 		}
+		$t = array();
+		$ts = '';
+		if (!empty($_REQUEST['data'])) return;
 		if (empty($_REQUEST['ts']) && !empty($_REQUEST['attr'])) $_REQUEST['ts'] = $_REQUEST['attr'];
 		$ts = strip_tags($_REQUEST['ts']);
-		$t = array();
 		if (strpos($_REQUEST['start'], 'last ')!== false) {
 			$st = parse_time($_REQUEST['start']);
 			$t['startt'] = strtotime($st);
@@ -229,9 +251,10 @@
 	// retrieve input
 	function input_data(&$data, &$t, &$parameters) {
 		conf_request($parameters);
-		parameters_request($parameters);
+		parameters_prompt($parameters);
+		$ts = '';
 		get_parameters($parameters, $ts, $t, $conf);
-		$data = get_data($ts, $t['start'], $t['stop'], $conf);
+		$data = empty($_REQUEST['data'])? get_data($ts, $t['start'], $t['stop'], $conf): json_decode($_REQUEST['data'], true);
 	}
 
 	// ----------------------------------------------------------------
