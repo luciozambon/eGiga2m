@@ -3,9 +3,9 @@
 
 	// ----------------------------------------------------------------
 	// retrieve fft from a specific server
-	function get_fft(&$tsdata, &$t, &$parameters) {
+	function get_fft(&$tsdata, &$parameters) {
 		conf_request($parameters);
-		parameters_request($parameters);
+		parameters_prompt($parameters);
 		get_parameters($parameters, $ts, $t, $conf);
 		$src = 'http://'.$_SERVER["SERVER_NAME"].strtr($_SERVER["PHP_SELF"],array('fft.php'=>'interpolator.php'));
 		$src .= strtr("?conf=$conf%26start={$t['start']}%26stop={$t['stop']}%26ts={$ts}", array('%20'=>'+', ':'=>'%3A'));
@@ -25,5 +25,5 @@
 		// 'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
 		// 'format'=>array('default'=>'json','type'=>array('csv','json','short'))
 	);
-	get_fft($data, $t, $parameters);
+	get_fft($data, $parameters);
 ?>
