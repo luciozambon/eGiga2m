@@ -33,7 +33,7 @@
 
 	$parameters = array(
 		'title'=>'Sum',
-		'description'=>'Add all values from the beginning considering or not the time diff',
+		'description'=>'Add all elements of timeseries from the beginning considering or not the time difference.<br> This is a sort of discrete integral',
 		'dt'=>array('default'=>true,'type'=>'bool','description'=>'consider or not the time diff'),
 		'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
 		'format'=>array('default'=>'json','type'=>array('csv','json','short'))
