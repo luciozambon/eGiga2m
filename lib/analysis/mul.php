@@ -48,7 +48,7 @@
 
 	$parameters = array(
 		'title'=>'Mul',
-		'description'=>'Multiply all time series selected (ts[i]) each rised to a constant (e[i])<br>m * ts[0]^e[0] * ts[1]^e[1] * ts[2]^e[2] * ... ',
+		'description'=>'Multiply element by element of all timeseries selected (ts[i]) each rised to a constant (e[i])<br>m * ts[0]^e[0] * ts[1]^e[1] * ts[2]^e[2] * ... ',
 		'e'=>array('default'=>1,'description'=>'array of exponents e[i] (comma separated)'),
 		'm'=>array('default'=>1,'description'=>'mulplicative factor'),
 		'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
