@@ -98,6 +98,7 @@
 
 	$parameters = array(
 		'title'=>'Interpolator',
+		'description'=>'Transform timeseries from an unequally spaced points in time to equally spaced.<br>The requested period should be congruent with average period and Nyquist frequency',
 		'period'=>array('default'=>30,'type'=>'number','description'=>'seconds between two consecutive samples of output'),
 		'method'=>array('default'=>'linear','type'=>array('step','linear','spline')),
 		'appendts'=>array('default'=>false,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
