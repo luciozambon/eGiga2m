@@ -1,6 +1,24 @@
 <?php
 	require_once('./conf.php');
-	
+	$htmlhead = "<!DOCTYPE html>
+	<html lang='en'><head>
+		<meta http-equiv='content-type' content='text/html; charset=UTF-8'>
+		<meta charset='utf-8'>
+		<meta http-equiv='X-UA-Compatible' content='IE=edge'>
+		<meta name='viewport' content='width=device-width, initial-scale=1'>
+		<meta name='description' content='Timeseries analysis tools'>
+		<meta name='author' content='LZ'>
+		<link rel='icon' href='https://www.elettra.eu/favicon.png'>
+
+		<title>eGiga2m - Analysis</title>
+		<script src='../json/json2.js'></script>
+		<link href='../bootstrap/bootstrap.css' rel='stylesheet'>
+		<link href='../bootstrap/bootstrap-theme.css' rel='stylesheet'>
+		<link href='../bootstrap/theme.css' rel='stylesheet'>
+		<script src='../bootstrap/ie10-viewport-bug-workaround.js'></script>
+	</head>
+	<body style='margin: 10px; padding: 0;'>";
+
 	// ----------------------------------------------------------------
 	// prompt parameters
 	function conf_request(&$parameters) {
@@ -31,7 +49,7 @@
 			$operator_name = $operator['filename'];
 			$title = empty($parameters['title'])? $operator_name: $parameters['title'];
 			die("
-				<h4>$title <input type='checkbox' onchange=\"switch_analysis('$operator_name')\" id='$operator_name'><a style='margin-left: 1em; text-decoration: none;' href='./lib/analysis/{$operator_name}.php' target='_blank'>?</a></h4>
+				<h4>$title <input type='checkbox' onchange=\"switch_analysis('$operator_name')\" id='$operator_name'><a style='margin-left: 1em; text-decoration: none;' href='./lib/analysis/{$operator_name}.php?conf={$_REQUEST['conf']}' target='_blank'>?</a></h4>
 				<div id='conf$operator_name' style='display: none'>$param</div>
 			");
 		}
@@ -41,39 +59,20 @@
 		$d = scandir('.');
 		$list = array();
 		foreach ($d as $f) {
-			if (strpos($f,'.php')!==false && strpos($f, 'analysis.php')===false && strpos($f, 'conf.php')===false && strpos($f, 'test')===false) {
+			if (strpos($f,'.php')!==false && strpos($f, 'analysis.php')===false && strpos($f, 'formula.php')===false && strpos($f, 'conf.php')===false && strpos($f, 'test')===false) {
 				if (!empty($list)) echo "<hr/>\n";
-				readfile('http://localhost'.strtr($_SERVER['PHP_SELF'],array('analysis.php'=>$f)).'?configure');
+				readfile('http://localhost'.strtr($_SERVER['PHP_SELF'],array('analysis.php'=>$f)).'?configure&conf='.$_REQUEST['conf']);
 				$list[] = strtr($f, array('.php'=>''));
 			}
 		}
 		echo "<analysis/>".implode(',', $list);
 	}
-	
+
 	if (isset($_REQUEST['listhtml'])) {
 		$d = scandir('.');
 		$list = array();
-		echo "<!DOCTYPE html>
-<html lang='en'><head>
-	<meta http-equiv='content-type' content='text/html; charset=UTF-8'>
-	<meta charset='utf-8'>
-	<meta http-equiv='X-UA-Compatible' content='IE=edge'>
-	<meta name='viewport' content='width=device-width, initial-scale=1'>
-	<meta name='description' content='Timeseries analysis tools'>
-	<meta name='author' content='LZ'>
-	<link rel='icon' href='https://www.elettra.eu/favicon.png'>
-
-	<title>eGiga2m - Analysis</title>
-	<script src='../json/json2.js'></script>
-	<link href='../bootstrap/bootstrap.css' rel='stylesheet'>
-	<link href='../bootstrap/bootstrap-theme.css' rel='stylesheet'>
-	<link href='../bootstrap/theme.css' rel='stylesheet'>
-	<script src='../bootstrap/ie10-viewport-bug-workaround.js'></script>
-</head>
-<body style='margin: 10px; padding: 0;'>
+		echo "$htmlhead
 		<h2>List of time series analysis tools</h2>";
-		
-		
 		foreach ($d as $f) {
 			$d = '';
 			if (strpos($f,'.php')!==false && strpos($f, 'analysis.php')===false && strpos($f, 'formula.php')===false && strpos($f, 'conf.php')===false && strpos($f, 'test')===false) {
@@ -83,10 +82,11 @@
 			}
 		}
 	}
-	
+
 	// ----------------------------------------------------------------
 	// prompt parameters
 	function parameters_prompt(&$parameters) {
+		global $htmlhead;
 		if (empty($_REQUEST) || (empty($_REQUEST['data']) && (empty($_REQUEST['start']) || (empty($_REQUEST['attr']) && empty($_REQUEST['ts']))))) {
 			$param = '';
 			foreach ($parameters as $i=>$p) {
@@ -111,13 +111,48 @@
 			$operator = pathinfo($_SERVER['SCRIPT_FILENAME']);
 			$operator_name = $operator['filename'];
 			$title = empty($parameters['title'])? $operator_name: $parameters['title'];
-			die("
+			die("$htmlhead
+				<script type='text/javascript' src='../tigra_calendar/tcal.js'></script> 
+				<link rel='stylesheet' type='text/css' href='../tigra_calendar/tcal.css' />
 				<h3>$title</h3>
 				<div style='font-size: 80%'>{$parameters['description']}</div><br>
 				<form method='get' action='./{$operator_name}.php'>
-				start <input type='text' name='start' required> (YYYY-MM-DD HH:MM:SS or Unix timestamp)<br><br>
-				stop <input type='text' name='stop' required> (YYYY-MM-DD HH:MM:SS or Unix timestamp)<br><br>
-				var <input type='text' name='ts'> (HDB id)<br><br>
+				<table><tr><td>
+				<div class='input-group'>
+				<span class='input-group-addon' style='width:7em;'>start</span>
+				<input type='text' class='tcal' placeholder='YYYY-MM-DD [hh:mm:ss]' name='start' id='startInput' size='18' onKeyPress='editCallback()'>
+				</div>
+				<div class='input-group' data-toggle='tooltip' title='leave empty to get up to last saved data'>
+				<span class='input-group-addon' style='width:7em;'>stop</span>
+				<input type='text' class='tcal' placeholder='YYYY-MM-DD [hh:mm:ss]' name='stop' id='stopInput' size='18' onKeyPress='editCallback()'>
+				</div>
+				<div class='input-group' data-toggle='tooltip'>
+				<span class='input-group-addon' style='width:7em;' title='timeseries ids'>timeseries</span>
+				<input type='text' placeholder='HDB id' id='ts' name='ts' size='14' title='timeseries ids'>
+				<img src='../../img/zoom.png' onClick='pv(0)' title='search timeseries name'> 
+				<img src='../../img/tree.png' onClick='pv(1)' title='select in tree'> 
+				</div>
+				</td></tr></table><br>
+				<script LANGUAGE='JavaScript'>
+				<!-- HIDE
+				var previewWindow = null;
+				function pv(tree) {
+					var ts = document.getElementById('ts').value.split(';')[0];
+					var url = '../../pickts.html?conf={$_REQUEST['conf']}&mode=' + (tree? 'tree': 'list') + (ts == ts-0 && ts>0? '&ts='+document.getElementById('ts').value: '');
+					if (!window.previewWindow) {	// has not yet been defined
+						previewWindow = window.open(url, 'preview','width=700,height=700,toolbar=1,status=0,location=1,menubar=0,scrollbars=1,resizable=1');
+					}
+					else {   // has been defined
+						if (!previewWindow.closed) {  // still open
+							previewWindow.focus();
+						}
+						else {
+							previewWindow = window.open(url, 'preview','width=700,height=700,toolbar=1,status=0,location=1,menubar=0,scrollbars=1,resizable=1');
+						}
+					}
+				}
+				//STOP HIDING -->
+				</script>
 				$param
 				<input type='submit' value='submit'>
 				</form>
@@ -328,7 +363,7 @@
 					'num_rows'=>count($dest[$i])
 				);
 			}
-			else {				
+			else {
 				if (isset($_REQUEST['debug'])) {echo "<br><br>appendts<pre>"; print_r($i);echo "</pre>";}
 				$tsdata['ts'][$i]["label"] = "$operator_name({$tsdata['ts'][$i]["label"]})";
 				$tsdata['ts'][$i]['data'] = $dest[$i];
