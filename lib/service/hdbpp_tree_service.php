@@ -1,12 +1,11 @@
 <?php
-
 	include './hdbpp_conf.php';
 	if (isset($_REQUEST['host'])) {die(HOST);}
 
 	$buffer_filename = 'tree_root.json';
 	$buffer_threshold = 3600;
 
-	$fancyConfig = array();
+	$fancyConfig = $fc = array();
 	$rowArray = array();
 
 	$db = mysqli_connect(HOST, USERNAME, PASSWORD, DB);
@@ -69,7 +68,7 @@
 			}
 			$res2 = mysqli_query($db, "SELECT * FROM att_history WHERE att_conf_id=".$row['att_conf_id']." ORDER BY time DESC LIMIT 20");
 			$d = mysqli_fetch_all($res2, MYSQLI_ASSOC);
-			$logging = !empty($d) && $d['att_history_event_id']=='3';
+			$logging = !empty($d) && $d[0]['att_history_event_id']=='3';
 			$title = basename($title);
 			if (!$logging) {
 				if (empty($d)) $alt = 'archiving has never been active'; else {
@@ -81,6 +80,7 @@
 				}
 				$title = "<span style='text-decoration: line-through;' title='$alt'>$title</span>";
 			}
+			else $title = "<span data-title='$title' title='last start: {$d[0]['time']}'>$title</span>";
 			return array('title' => $title, 'key'=> $row['att_conf_id'], "folder"=> false, "isArray" => $dim=="array", "lazy" => false, "icon"=> $icon);
 		}
 		$res2 = mysqli_query($db, "SELECT DISTINCT SUBSTRING_INDEX(att_name,'/',$tree_index) AS description FROM att_conf WHERE att_name LIKE '$key%' ORDER BY description");
@@ -88,7 +88,28 @@
 			$key2 = $row['description'];
 			$title2 = strtr($row['description'], $skipdomain);
 			if (isset($tree_base[$title2])) {
-				$children[] = expand_children($tree_base, $key2, $title2, $tree_index+1);
+				$title3 = basename($title2);
+				$res = mysqli_query($db, "SELECT data_type, att_conf.att_conf_id FROM att_conf,att_conf_data_type WHERE att_name = '$key2' AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id ORDER BY att_name");
+				$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
+				list($dim, $type, $io) = explode('_', $row['data_type']);
+				$query = "SELECT * FROM att_history WHERE att_conf_id=".$row['att_conf_id']." ORDER BY time DESC LIMIT 5";
+				$res3 = mysqli_query($db, $query);
+				if (isset($_REQUEST['debug'])) echo("$query;<br>");
+				$d = mysqli_fetch_all($res3, MYSQLI_ASSOC);
+				if (isset($_REQUEST['debug'])) debug($d, 'd');
+				$logging = !empty($d) && $d[0]['att_history_event_id']=='3';
+				if (!$logging) {
+					if (empty($d)) $alt = 'archiving has never been active'; else {
+						$alt = 'archiving not active now';
+						foreach ($d as $data) {
+							if ($data['att_history_event_id']=='3') {$alt = 'archiving not active since '.$t; break;}
+							$t = $data['time'];
+						}
+					}
+					$title3 = "<span style='text-decoration: line-through;' title='$alt'>$title3</span>";
+				}
+				else $title3 = "<span data-laststart='{$d[0]['time']}'>$title3</span>";
+				$children[$tree_index>5? $title3: $title2] = expand_children($tree_base, $key2, $title2, $tree_index+1);
 			}
 			else {
 				$title2 = basename($title2);
@@ -96,9 +117,12 @@
 					$res = mysqli_query($db, "SELECT data_type, att_conf.att_conf_id FROM att_conf,att_conf_data_type WHERE att_name = '$key2' AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id ORDER BY att_name");
 					$row = mysqli_fetch_array($res, MYSQLI_ASSOC);
 					list($dim, $type, $io) = explode('_', $row['data_type']);
-					$res3 = mysqli_query($db, "SELECT * FROM att_history WHERE att_conf_id=".$row['att_conf_id']." ORDER BY time DESC LIMIT 20");
+					$query = "SELECT * FROM att_history WHERE att_conf_id=".$row['att_conf_id']." ORDER BY time DESC LIMIT 5";
+					$res3 = mysqli_query($db, $query);
+					if (isset($_REQUEST['debug'])) echo("$query;<br>");
 					$d = mysqli_fetch_all($res3, MYSQLI_ASSOC);
-					$logging = !empty($d) && $d['att_history_event_id']=='3';
+					if (isset($_REQUEST['debug'])) debug($d, 'd');
+					$logging = !empty($d) && $d[0]['att_history_event_id']=='3';
 					if (!$logging) {
 						if (empty($d)) $alt = 'archiving has never been active'; else {
 							$alt = 'archiving not active now';
@@ -109,14 +133,17 @@
 						}
 						$title2 = "<span style='text-decoration: line-through;' title='$alt'>$title2</span>";
 					}
-					$children[] = array('title' => $title2, 'key'=>$row['att_conf_id'], "folder" => false, "isArray" => $dim=="array", "lazy" => false, "icon" => "./img/y0axis.png");
+					else $title2 = "<span data-laststart='{$d[0]['time']}'>$title2</span>";
+					$children[$title2] = array('title' => $title2, 'key'=>$row['att_conf_id'], "folder" => false, "isArray" => $dim=="array", "lazy" => false, "icon" => "./img/y0axis.png");
 				}
 				else {
-					$children[] = array('title' => $title2, 'key'=>$key2, "folder" => true, "lazy" => true, "expanded" => false);
+					$children[$title2] = array('title' => $title2, 'key'=>$key2, "folder" => true, "lazy" => true, "expanded" => false);
 				}
 			}
 		}
-		return array('title' => basename($title), 'key'=>$key, "folder" => true, "lazy" => false, "expanded" => true, "children"=>$children);
+		ksort($children);
+		if (isset($_REQUEST['debug'])) {debug($children, 'children sorted');}
+		return array('title' => basename($title), 'key'=>$key, "folder" => true, "lazy" => false, "expanded" => true, "children"=>array_values($children));
 	}
 
 
@@ -366,6 +393,7 @@
 			}
 		}
 		else {
+			$fc = array();
 			$query = "SELECT * FROM att_conf,att_conf_data_type WHERE att_name LIKE ".quote_smart($_REQUEST['key'].'/%')." AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id ORDER BY att_name";
 			$res = mysqli_query($db, $query);
 			if (isset($_REQUEST['debug'])) echo "$query;<br>\n";
@@ -387,8 +415,11 @@
 					}
 					$title = "<span style='text-decoration: line-through;' title='$alt'>$title</span>";
 				}
-				$fancyConfig[] = array('title' => $title, 'key'=> $key, "lazy" => false, "folder"=> false, "isArray" => $dim=="array", "icon"=>"./img/y0axis.png");
+				else $title = "<span data-laststart='{$d['time']}'>$title</span>";
+				$fc[$title] = array('title' => $title, 'key'=> $key, "lazy" => false, "folder"=> false, "isArray" => $dim=="array", "icon"=>"./img/y0axis.png");
 			}
+			ksort($fc);
+			$fancyConfig = array_values($fc);
 		}
 	}
 	// file_put_contents('tree_log.txt', date("Y-m-d H:i:s").' - '.json_encode($tsArray).' - '.json_encode($fancyConfig)."\n", FILE_APPEND);
