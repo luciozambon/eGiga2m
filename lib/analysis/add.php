@@ -48,8 +48,8 @@
 
 	$parameters = array(
 		'title'=>'Add',
-		'description'=>'Add element by element of all timeseries selected (ts[i]) each multiplied for a constant (m[i]) plus an additive constant (a)<br>a + m[0]*ts[0] + m[1]*ts[1] + m[2]*ts[2] + ... ',
-		'm'=>array('default'=>1,'description'=>'array of mulplicative factors m[i] (comma separated)'),
+		'description'=>'Add element by element of all timeseries selected (ts[i]); each timeseries is multiplied for a constant (m[i]) plus an additive constant (a)<br>a + m[0]*ts[0] + m[1]*ts[1] + m[2]*ts[2] + ... ',
+		'm'=>array('default'=>1,'description'=>'array of mulplicative factors m[i] (comma separated, one foreach timeseries)'),
 		'a'=>array('default'=>0,'type'=>'number','description'=>'additive constant a'),
 		'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
 		'format'=>array('default'=>'json','type'=>array('csv','json','short'))
