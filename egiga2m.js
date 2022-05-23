@@ -801,7 +801,7 @@
 	}
 
 	function initAnalysis() {
-		$.get('./lib/analysis/analysis.php?list', function(data) {
+		$.get('./lib/analysis/analysis.php?list&conf='+$_GET['conf'], function(data) {
 			var d = data.split('<analysis/>')
 			document.getElementById('analysis').innerHTML = d[0];
 			analysis = d[1].split(',');
