@@ -1,5 +1,6 @@
 <?php
 	require_once('./conf.php');
+	file_put_contents('../../log/analysis.log', date("Y-m-d H:i:s")." - server\n", FILE_APPEND);
 	$htmlhead = "<!DOCTYPE html>
 	<html lang='en'><head>
 		<meta http-equiv='content-type' content='text/html; charset=UTF-8'>
@@ -66,6 +67,16 @@
 			}
 		}
 		echo "<analysis/>".implode(',', $list);
+	}
+	if (isset($_REQUEST['listext'])) {
+		$d = scandir('.');
+		$list = array();
+		foreach ($d as $f) {
+			if (strpos($f,'.php')!==false && strpos($f, 'analysis.php')===false && strpos($f, 'formula.php')===false && strpos($f, 'conf.php')===false && strpos($f, 'test')===false) {
+				$list[] = strtr($f, array('.php'=>''));
+			}
+		}
+		echo implode("\n", $list);
 	}
 
 	if (isset($_REQUEST['listhtml'])) {
