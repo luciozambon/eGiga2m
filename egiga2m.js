@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.18.3';
+	var version = '1.18.4';
 	var visited = new Array();
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
@@ -2093,6 +2093,9 @@
 				// console.log('ylab', j, data[j]['yaxis'], data[j]['display_unit']);
 			}
 			for (var k=1; k<ylab.length; k++) {
+				if (!ylab[k]) {
+					$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>ERROR: missing axis Y"+k+"</h4>At least one time series must be displayed on Y"+k+" axes.<br>Please change axis selection clicking on axis icons: <img src='./img/y0axis.png'> <img src='./img/y1axis.png'> <img src='./img/y2axis.png'>");
+				}
 				lab = ylab[k][0];
 				for (var m=1; m<ylab[k].length; m++) {
 					if (lab != ylab[k][m]) {lab = ylab[k].join(' - '); break;}
