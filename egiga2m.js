@@ -11,8 +11,9 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.18.4';
-	var visited = new Array();
+	var version = '1.18.5';
+	console.log('eGiga2m, version', version);
+	var visited = [];
 	var activePoint = -1; // used by tooltip keyboard navigation
 	var mychart = -1;
 	var myPlot = -1;
@@ -26,8 +27,8 @@
 	var exportBlanks = '';
 	var exportDecimation = '';
 	var curves;
-	var myPlotClass = new Array();
-	var myHistory = new Array();
+	var myPlotClass = [];
+	var myHistory = [];
 	var myHistoryCounter = -1;
 	var plotService = './lib/service/plot_service.php?conf=';
 	var treeService = './lib/service/tree_service.php?conf=';
@@ -75,6 +76,7 @@
 	else {
 		initConf(false);
 	}
+	if (typeof($_GET['debug']) !== 'undefined') console.log('init, $_GET', $_GET);
 	if (localStorage.length && typeof(localStorage.csvrepo) !== 'undefined') {
 		document.getElementById('csvrepo').value = localStorage.csvrepo;
 		document.getElementById('retain').value = localStorage.csvrepo;
@@ -230,6 +232,43 @@
 	};
 	*/
 
+	function exportImage(format) {
+		if (document.getElementById('show_chartjs').checked) {
+			var tmp_canvas = document.getElementById('canvas');
+			var dt = tmp_canvas.toDataURL("image/png");
+			dt = dt.replace(/^data:image\/[^;]*/, 'data:application/octet-stream');
+			dt = dt.replace(/^data:application\/octet-stream/, 'data:application/octet-stream;headers=Content-Disposition%3A%20attachment%3B%20filename=eGiga2m.png');
+			document.getElementById('pngExport').href = dt;
+			document.getElementById('pngExport').download = "eGiga2m."+format;
+			console.log(dt);
+		}
+		else if (document.getElementById('show_flot').checked) {
+			Canvas2Image.saveAsPNG(myPlot.getCanvas());
+		}
+		else {
+			var legendLeft = $('div.highcharts-legend')[0].style.left.replace('px','')-0;
+			var legendTop = $('div.highcharts-legend')[0].style.top.replace('px','')-0;
+			var legendItems = $('div.highcharts-legend-item');
+			var legend = '';
+			for (var i=0; i<legendItems.length; i++) {
+				var left = legendItems[i].style.left.replace('px','') - 0;
+				var top = legendItems[i].style.top.replace('px','') - 0;
+				legend = legend + '<text x="'+(legendLeft+left+25)+'" y="'+(legendTop+top+15)+'">'+legendItems[i].children[0].children[0].innerText+'</text>';
+			}
+			var svgdata = $('.highcharts-container')[0].innerHTML.split('</svg>')[0]+legend+'</svg>';
+			$.post('./lib/img/export.php',{svg: svgdata, format: format}, function( data ) {
+				// https://stackoverflow.com/questions/17311645/download-image-with-javascript
+				var a = document.createElement('a');
+				var t = Date.now();
+				a.href = "./lib/img/export."+format+"?"+t;
+				a.download = "eGiga2m."+format;
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+			});
+		}
+	}
+
 	function updateLink(myTs){
 		var ts = '';
 		if (ftree==null && document.getElementById('ts').value.length) {
@@ -313,6 +352,9 @@
 		if (typeof(myTs) !== 'undefined') {
 			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+chartjs+table;
 			window.location = homeURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+chartjs+table;
+		}
+		else if (document.getElementById("exportPng").checked) {
+			exportImage('png');
 		}
 		else {
 			var myParams = necessaryParam+optionalParam+hc+flot+chartjs+table+event;
@@ -479,6 +521,7 @@
 		var tree = $("#tree").fancytree("getTree");
 		tree.visit(function(node){
 			if (!node.folder) {
+				// console.log('visit(), node: '+node.key, node);
 				if (node.key.indexOf('_')>-1) {
 					var naming = node.key.split('_');
 					naming.shift();
@@ -521,7 +564,8 @@
 	}
 
 	function initPlot($_GET) {
-		$("#tree").width($("#configContainer").width());
+		if ($_GET.debug) console.log('initPlot(), $_GET', $_GET);
+		if ($("#tree")) $("#tree").width($("#configContainer").width());
 		// var $_GET = getQueryParams(document.location.search);
 		// alert(JSON.stringify($_GET, null, '\t'));
 		for (j=0; j<events.length; j++) if (typeof($_GET['show_'+events[j]]) !== 'undefined') {
@@ -570,7 +614,7 @@
 			}
 			return;
 		}
-		if (ts.indexOf('_')>=0) {
+		if (ts.indexOf('_')>=0 && ts.indexOf('/')<0) {
 			var tsa = ts.split(';');
 			var tsb = [];
 			for (var i=0; i<tsa.length; i++) {
@@ -603,6 +647,7 @@
 				document.getElementById('show_table').checked = true;
 			}
 		}
+		if ($_GET.debug) console.log('initPlot(), plotTs', ts, tsc, start, stop);
 		plotTs(ts, tsc, start, stop);
 		if (ts!='') add_history(0);
 	}
@@ -728,8 +773,8 @@
 			document.getElementById('treeid').style.display = 'inline';
 			var plotWidth = $(window).width()-280;
 			if (plotWidth < 300) plotWidth = 300;
-			$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
-			$("#placeholder").width(plotWidth-10).height(height+'px');
+			$("#mybackground").width(plotWidth-14).height(((height-0)-14)+'px');
+			$("#placeholder").width(plotWidth-14).height(height+'px');
 			rePlotTs();
 		}
 		else {
@@ -738,8 +783,8 @@
 			document.getElementById('treeid').style.display = 'none';
 			var plotWidth = $(window).width()-30;
 			if (plotWidth < 300) plotWidth = 300;
-			$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
-			$("#placeholder").width(plotWidth-10).height(height+'px');
+			$("#mybackground").width(plotWidth-14).height(((height-0)-14)+'px');
+			$("#placeholder").width(plotWidth-14).height(height+'px');
 			rePlotTs();
 		}
 	}
@@ -921,10 +966,6 @@
 		csvTs(ts, start, stop);
 	}
 
-	function pngCallback(){
-		Canvas2Image.saveAsPNG(myPlot.getCanvas());
-	}
-
 	function getQueryParams(qs) {
 		qs = qs.split("+").join(" ");
 		var params = {},
@@ -939,8 +980,8 @@
 	function handleFileSelect(evt) {
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		// console.log('handleFileSelect()',evt, height);
-		$("#mybackground").width($("#plotContainer").width()).height(((height-0)+10)+'px');
-		$("#placeholder").width($("#plotContainer").width()-10).height(height+'px');
+		$("#mybackground").width($("#plotContainer").width()-14).height(((height-0)-14)+'px');
+		$("#placeholder").width($("#plotContainer").width()-14).height(height+'px');
 		document.getElementById('placeholder').style.border = "0px";
 		evt.stopPropagation();
 		evt.preventDefault();
@@ -1108,7 +1149,7 @@
 		}
 		tableContent += '</tbody></table>';
 		document.getElementById('tableContainer').innerHTML = showTable? tableContent: '';
-		document.getElementById('pngCallback').style.display = 'inline';
+		if (document.getElementById('pdfExport')) document.getElementById('pdfExport').style.display = 'none';
 		if (document.getElementById('retain').value.length>0) {
 			$.post("./lib/service/csv_service.php",{ name: csvImport.name, content: csvImport.lines.join("\n"), separator: separator, timeformat: datetimeFormat, db: document.getElementById('retain').value }, dataImported);
 		}
@@ -1341,7 +1382,7 @@
 	}
 
 	function plotTs(tsRequest, ts2, start, stop){
-		// console.log('tsRequest',tsRequest,'ts2',ts2);
+		if ($_GET.debug) console.log('plotTs(), tsRequest',tsRequest,'ts2',ts2);
 		curves = new Array();
 		myRequest = tsRequest;
 		var event = '';
@@ -1362,8 +1403,8 @@
 		if (height < 300) height = 300;
 		var plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
 		if (plotWidth < 300) plotWidth = 300;
-		$("#mybackground").width(plotWidth).height(((height-0)+10)+'px');
-		$("#placeholder").width(plotWidth-10).height(height+'px');
+		$("#mybackground").width(plotWidth-14).height(((height-0)-14)+'px');
+		$("#placeholder").width(plotWidth-14).height(height+'px');
 		$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<img src='./img/timer.gif'>");
 		var start_param = 'start=' + start;
 		var stop_param = '';
@@ -1383,12 +1424,12 @@
 				if (behind>60) alert('WARNING\nThe data has not been updated for '+behind+' seconds');
 			})
 		//}
-		// console.log('ts',ts,'ts2', ts2);
+		if ($_GET.debug) console.log('ts',ts,'ts2', ts2);
 		if (ts.length+ts2.length < 1) {
 			$("#placeholder").html("&nbsp;&nbsp;&nbsp;&nbsp;<h4>WARNING: No Time Series has been requested</h4>Please select e Time Series and a time period");
 		}
 		else 
-			// console.log('plotService',plotService);
+			if ($_GET.debug) console.log('plotService',plotService);
 			if (ts.length>0 && ts2.length>0) {
 				curves = [];
 				if (plotService.indexOf('analysis/')>-1) {
@@ -1436,7 +1477,7 @@
 				});
 			}
 			else if (ts.length>0) $.get(plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event, function(data) {
-				// console.log('$.get data',data, '.get()', plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event);
+				if ($_GET.debug) console.log('$.get data',data, '.get()', plotService+'&'+start_param+stop_param+'&ts='+ts+prestart+event);
 				for (var i=0; i<data.ts.length; i++) {
 					curves.push({request: data.ts[i].ts_id, x: ''+data.ts[i].xaxis, y: data.ts[i].yaxis, response: data.ts[i].ts_id});
 				}
@@ -1473,18 +1514,18 @@
 	function plotData(dataTs, dataEvent, forecastData, start, stop){
 		var startArray = start.split(';');
 		var stopArray = stop.split(';');
-		// console.table(dataTs);
+		if ($_GET.debug) console.log('plotData, dataTs:', dataTs);
 		if (document.getElementById('show_hc').checked) {
 			hcPlot(dataTs, dataEvent, forecastData, startArray, stopArray);
-			document.getElementById('pngCallback').style.display = 'none';
+			if (document.getElementById('pdfExport')) document.getElementById('pdfExport').style.display = 'inline';
 		}
 		else if (document.getElementById('show_chartjs').checked) {
 			chartjsPlot(dataTs, dataEvent, forecastData, startArray, stopArray);
-			document.getElementById('pngCallback').style.display = 'none';
+			if (document.getElementById('pdfExport')) document.getElementById('pdfExport').style.display = 'none'; 
 		}
 		else if (document.getElementById('show_flot').checked) {
 			flotPlot(dataTs, dataEvent, startArray, stopArray);
-			document.getElementById('pngCallback').style.display = 'inline';
+			if (document.getElementById('pdfExport')) document.getElementById('pdfExport').style.display = 'none'; 
 		}
 		else {
 			$("#mybackground").height('1px');
@@ -1730,7 +1771,7 @@
 		myPlot = localPlot;
 		// add labels
 		$("#placeholder").append('<div style="position:absolute;left:120px;top:10px;color:#676;font-size:smaller">eGiga2m - '+start+' - '+stop+'</div>');
-		if (document.getElementById('pngCallback')) document.getElementById('pngCallback').style.display = 'inline';
+		if (document.getElementById('pdfExport')) document.getElementById('pdfExport').style.display = 'none'; 
 		if (document.getElementById('hidetree')) document.getElementById('hidetree').style.display = 'inline';
 		// flotUpdate();
 	}
@@ -1775,7 +1816,7 @@
 			plotTs(myRequest, [], startStop[0], startStop[1]);
 			add_history(0);
 		}
-		else {
+		else if (document.location.search.indexOf('noclick')==-1) {
 			document.location = './index.html'+document.location.search;
 		}
 	});
@@ -1787,7 +1828,7 @@
 	function hcPlot(data, eventData, forecastData, startArray, stopArray){
 		$("#canvas").hide();
 		$("#placeholder").show();
-		// console.log('hcPlot(), data', data, 'curves', curves)
+		if ($_GET.debug) console.log('hcPlot(), data', data, 'curves', curves)
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		if (height < 300) height = 300;
@@ -1811,7 +1852,7 @@
 		// console.log('curves', curves);
 		for (var j in curves) {
 			if (j=='clone') continue;
-			// console.log('kk', kk, 'j', j,'data[kk]', data[kk], data[kk]['ts_id'].split('[')[0], curves[j]['request']);
+			if ($_GET.debug) console.log('kk', kk, 'j', j,'data[kk]', data[kk]);
 			if (data) while (data[kk] && data[kk]['ts_id'].split('[')[0]==curves[j]['request']) {
 				const query_time = (data[kk]['query_time'])? data[kk]['query_time']: 0;
 				const samplesPerSecond = query_time>0? ', Samples per second: '+(data[kk]['num_rows']/query_time).toFixed(0): '';
@@ -1938,7 +1979,7 @@
 								plotTs(myRequest, [], startStop[0], startStop[1]);
 								add_history(0);
 							}
-							else {
+							else if (document.location.search.indexOf('noclick')==-1) {
 								document.location = document.location.pathname.match(/[^\/]+$/)[0].replace('_plot.html', '.html')+document.location.search;
 							}
 						}
@@ -2045,6 +2086,16 @@
 		}
 		if (typeof(window.$_GET['hideMenu']) !== 'undefined') {
 			chartConfig.navigation={buttonOptions:{enabled: false}};
+		}
+		if (typeof(window.$_GET['plotLines']) !== 'undefined') {
+			var pl = window.$_GET['plotLines'].split(';');
+			var plotLines = [];
+			for (var i=0; i<pl.length; i++) {
+				var v = pl[i].split(',');
+				plotLines.push({color: (v.length>2? v[2]:'#FF0000'), width: (v.length>1? v[1]:1), value: v[0]});
+			}
+			chartConfig.xAxis[0].plotLines = plotLines;
+			// https://jsfiddle.net/gh/get/library/pure/highcharts/highcharts/tree/master/samples/highcharts/demo/annotations/
 		}
 		if (typeof(window.$_GET['xShow']) !== 'undefined') {
 			var xShow = window.$_GET['xShow'].split(';');
