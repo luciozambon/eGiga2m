@@ -187,7 +187,6 @@
 								</span>
 							</div><!-- /input-group -->
 						 </td><td>&nbsp;&nbsp;&nbsp;</td></tr></table>
-							<br><button class="btn btn-default" type="button" onClick="pngCallback()" id="pngCallback" style="display:none">export to png</button>
 							<div class="btn-group dropup">
 								<button type="button" onClick="update_see_also()" id="see_also_button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="display: none;">
 									See also <span class="caret"></span>
@@ -271,6 +270,7 @@
 				<h4 class="modal-title" id="exportModalLabel">Export</h4>
 			</div>
 			<div class="modal-body">
+				<a class="btn btn-default" id='pngExport' onclick="exportImage('png')">PNG</a>&nbsp;&nbsp;&nbsp;<a class="btn btn-default" id='pdfExport' onclick="exportImage('pdf')">PDF</a><hr>
 				Format<sup><a href='./doc/index.html#export' target='_blank'>(?)</a></sup>: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type='radio' id='exportCsv' name='exportFormat' value='CSV' checked>&nbsp;CSV&nbsp;&nbsp;&nbsp;&nbsp;
 				<input type='radio' id='exportXls' name='exportFormat' value='XLS' OnChange='return false;'>&nbsp;XLS&nbsp;&nbsp;&nbsp;&nbsp;
 				<input type='radio' id='exportMat' name='exportFormat' value='MAT' OnChange='return false;'>&nbsp;MAT&nbsp;&nbsp;&nbsp;&nbsp;
