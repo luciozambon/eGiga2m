@@ -9,6 +9,7 @@
 			$d = $data['ts'][$j];
 			$name = pathinfo($d['label']);
 			if ($format=='csv') $dest .= 't;'.$name['filename']; else $dest[$j] = array();
+			$ybuf = $wbuf = 0;
 			for ($t=0; $t<count($d['data']); $t++) {
 				$s = $parameters['samples']['value'];
 				// if ($t < $s) $s = $t;
@@ -18,23 +19,38 @@
 					$y = null;
 				}
 				else if ($parameters['method']['value'] == 'sma') {
-					for ($i=$t-$s; $i<=$t+$s; $i++) {
-						if (!isset($d['data'][$i])) continue;
-						if ($d['data'][$i][1] !== null) {
-							$y += $d['data'][$i][1];
-							$w++;
+					if ($s == 0) {
+						if ($d['data'][$t][1] !== null) {
+							$ybuf += $d['data'][$t][1];
+							$wbuf++;
+							$y = $ybuf;
+							$w = $wbuf;
+						}
+					}
+					else {
+						for ($i=$t-$s; $i<=$t+$s; $i++) {
+							if (!isset($d['data'][$i])) continue;
+							if ($d['data'][$i][1] !== null) {
+								$y += $d['data'][$i][1];
+								$w++;
+							}
 						}
 					}
 					$y = $w>0? $y / $w: null;
 					if (isset($_REQUEST['debug'])) echo sprintf('%01d',$t)."[&Delta;t,y]: [".(($d['data'][$t][0]-$d['data'][0][0])/1000).", $y]<br>\n";
 				}
 				else {
-					for ($i=$t-$s; $i<=$t+$s; $i++) {
-						if (!isset($d['data'][$i])) continue;
-						if ($d['data'][$i][1] !== null) {
-							$wg = $weight / ($weight + abs($d['data'][$t][0] - $d['data'][$i][0]));
-							$y += $d['data'][$i][1] * $wg;
-							$w += $wg;
+					if ($s == 0) {
+						return $dest;
+					}
+					else {
+						for ($i=$t-$s; $i<=$t+$s; $i++) {
+							if (!isset($d['data'][$i])) continue;
+							if ($d['data'][$i][1] !== null) {
+								$wg = $weight / ($weight + abs($d['data'][$t][0] - $d['data'][$i][0]));
+								$y += $d['data'][$i][1] * $wg;
+								$w += $wg;
+							}
 						}
 					}
 					$y = $w>0? $y / $w: null;
@@ -49,10 +65,10 @@
 	$parameters = array(
 		'title'=>'Moving average',
 		'description'=>'Moving average, based only on a number of samples after and before or on time distance weights',
-		'samples'=>array('default'=>5,'type'=>'number','description'=>'number of samples before and after actual sample considered for moving average'),
+		'samples'=>array('default'=>5,'type'=>'number','description'=>'number of samples before and after actual sample considered for moving average, if 0 consider all samples before actual sample and none after in SMA, return empty set in WMA'),
 		'method'=>array('default'=>'sma','type'=>array('sma','wma'),'description'=>'simple moving average (SMA) or a time based weighted moving average (WMA)'),
-		'weight'=>array('default'=>1,'type'=>'number','factor'=>1000000,'description'=>'wheight (only for exponential moving average)'),
-		'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
+		'weight'=>array('default'=>1,'type'=>'number','factor'=>1000000,'description'=>'wheight (only for WMA exponential moving average)'),
+		'appendts'=>array('default'=>false,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
 		'format'=>array('default'=>'json','type'=>array('csv','json','short'))
 	);
 	input_data($data, $t, $parameters);
