@@ -34,7 +34,7 @@
 		'title'=>'Diff',
 		'description'=>'Difference from the previous element of timeseries considering or not the time difference.<br> This is a sort of discrete derivate',
 		'dt'=>array('default'=>true,'type'=>'bool','description'=>'consider or not the time difference'),
-		'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
+		'appendts'=>array('default'=>false,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
 		'format'=>array('default'=>'json','type'=>array('csv','json','short'))
 	);
 	input_data($data, $t, $parameters);
