@@ -39,7 +39,7 @@
 		'title'=>'Min',
 		'description'=>'Minimum value from the beginning of the timeseries or in a moving window (discrete lower envelope)',
 		'samples'=>array('default'=>0,'type'=>'number','description'=>'number of samples before and after actual sample, if 0 consider all samples before actual sample and none after'),
-		'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
+		'appendts'=>array('default'=>false,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
 		'format'=>array('default'=>'json','type'=>array('csv','json','short'))
 	);
 	input_data($data, $t, $parameters);
