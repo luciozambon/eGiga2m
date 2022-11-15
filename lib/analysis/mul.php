@@ -51,7 +51,7 @@
 		'description'=>'Multiply element by element of all timeseries selected (ts[i]); each timeseries is rised to a constant (e[i])<br>m * ts[0]^e[0] * ts[1]^e[1] * ts[2]^e[2] * ... ',
 		'e'=>array('default'=>1,'description'=>'array of exponents e[i] (comma separated, one foreach timeseries)'),
 		'm'=>array('default'=>1,'description'=>'mulplicative factor'),
-		'appendts'=>array('default'=>true,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
+		'appendts'=>array('default'=>false,'type'=>'bool','description'=>'deploy the derived time series and the original one (true) or the derived one only (false)'),
 		'format'=>array('default'=>'json','type'=>array('csv','json','short'))
 	);
 	input_data($data, $t, $parameters);
