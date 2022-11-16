@@ -353,9 +353,9 @@
 			if (myTs == 'history') return necessaryParam+optionalParam+hc+flot+chartjs+table;
 			window.location = homeURL+'?'+conf+start+stop+'&ts='+myTs+optionalParam+hc+flot+chartjs+table;
 		}
-		else if (document.getElementById("exportPng").checked) {
+		/*else if (document.getElementById("exportPng").checked) {
 			exportImage('png');
-		}
+		}*/
 		else {
 			var myParams = necessaryParam+optionalParam+hc+flot+chartjs+table+event;
 			myParams = myParams.replace('&show_error=','');
