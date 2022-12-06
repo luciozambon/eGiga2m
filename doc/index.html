@@ -69,6 +69,7 @@ Clicking on a leaf a time series will be plotted on the left axis <img src='../i
 Clicking again on the same time series will switch the plot to the right axis <img src='../img/y2axis.png'>.<br>
 Clicking the third time on the same time series will remove it from the plot <img src='../img/y0axis.png'>.<br>
 The "Show" button will create/update the plot using all the selected configurations.<br>
+There is a vertical bar between between tree and chart area. It can be adjasted manually or by url; using chart.js the chart adjusts responsively.
 
 
 <a name='link'></a><br>
@@ -90,7 +91,8 @@ sub-window plot, the controls allow you to change the plot.
 <a name='export'></a><br><br>
 <h4>Export</h4>
 This <a href='https://en.wikipedia.org/wiki/Modal_window'>modal</a> is used to export numerical data in a file. CSV,
-XLS, MAT and ITX file format are provided.<br>
+XLS, MAT, ITX and JSON file format are provided.<br>
+It provides also binary files in PNG and PDF files, PDF contans a vectorial chart and are available only 
 In the case of CSV XLS and ITX format, all Time series are included in a single table, the first column is the merge of the timestamps of all 
 Time series, the other columns are one per Time series; where undefined a time series is filled with a blank value unless you select
 the option to fill with the previous value or with the linear interpolation; You can choose to decimate Time series specifying the
