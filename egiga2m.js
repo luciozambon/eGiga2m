@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.18.5';
+	var version = '1.18.6';
 	console.log('eGiga2m, version', version);
 	var visited = [];
 	var activePoint = -1; // used by tooltip keyboard navigation
@@ -558,13 +558,14 @@
 		document.getElementById('ts').value = ts;
 		if (!surface) document.getElementById('animationControls').style.display = 'none';
 		if (updateId!==false) {clearInterval(updateId); updateId = false;} 
-		document.getElementById('hidetree').style.display = 'inline';
+		// document.getElementById('hidetree').style.display = 'inline';
 		if (!surface) plotTs(ts, axis2, start, stop);
 		add_history(0);
 	}
 
 	function initPlot($_GET) {
 		if ($_GET.debug) console.log('initPlot(), $_GET', $_GET);
+		console.log('tw', $("#tree").width(), $("#configContainer").width())
 		if ($("#tree")) $("#tree").width($("#configContainer").width());
 		// var $_GET = getQueryParams(document.location.search);
 		// alert(JSON.stringify($_GET, null, '\t'));
@@ -669,9 +670,10 @@
 			}
 			if (!$('#tree').length) return;
 			var source_url = treeService;
-			var treeHeight = $(window).height()-320;
+			var treeHeight = $("#treeconfig").height(); // $(window).height()-320;
 			if (treeHeight < 150) treeHeight = 150;
-			if (typeof(formula_edit) === 'undefined') $(tree).width(250).height(treeHeight);
+			var configWidth = document.location.search.indexOf('config_size=')==-1? 280: document.location.search.split('config_size=')[1].split('&')[0]-10;
+			if (typeof(formula_edit) === 'undefined') $(tree).width(configWidth).height(treeHeight);
 			if (typeof($_GET['ts']) !== 'undefined') source_url = source_url + '&ts=' + $_GET['ts'];
 			ftree = $("#tree").fancytree({
 				autoScroll: true,
@@ -766,7 +768,7 @@
 		});
 	}
 
-	function switchtree() {
+	/*function switchtree() {
 		if (document.getElementById('hidetree').InnerHTML == "<img src='./img/right.png'>") {
 			document.getElementById('hidetree').InnerHTML = "<img src='./img/y0axis.png'>";
 			$('body').find('#hidetree').html("<img src='./img/y0axis.png'>")
@@ -787,7 +789,7 @@
 			$("#placeholder").width(plotWidth-14).height(height+'px');
 			rePlotTs();
 		}
-	}
+	}*/
 
 	function rePlotTs(){
 		// adjust plot width
@@ -1398,10 +1400,12 @@
 			var minY = document.getElementById('minY').value;
 			if (minY.length>1) event += '&minY=' + minY;
 		}
+		if ($_GET.normalize) event += '&normalize';
 		// adjust plot dimensions
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		if (height < 300) height = 300;
-		var plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
+		// var plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
+		var plotWidth = $("#plotContainer").width()-14
 		if (plotWidth < 300) plotWidth = 300;
 		$("#mybackground").width(plotWidth-14).height(((height-0)-14)+'px');
 		$("#placeholder").width(plotWidth-14).height(height+'px');
