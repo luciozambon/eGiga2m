@@ -565,7 +565,6 @@
 
 	function initPlot($_GET) {
 		if ($_GET.debug) console.log('initPlot(), $_GET', $_GET);
-		console.log('tw', $("#tree").width(), $("#configContainer").width())
 		if ($("#tree")) $("#tree").width($("#configContainer").width());
 		// var $_GET = getQueryParams(document.location.search);
 		// alert(JSON.stringify($_GET, null, '\t'));
@@ -670,10 +669,10 @@
 			}
 			if (!$('#tree').length) return;
 			var source_url = treeService;
-			var treeHeight = $("#treeconfig").height(); // $(window).height()-320;
+			var treeHeight = $("#treeconfig").height();
 			if (treeHeight < 150) treeHeight = 150;
-			var configWidth = document.location.search.indexOf('config_size=')==-1? 280: document.location.search.split('config_size=')[1].split('&')[0]-10;
-			if (typeof(formula_edit) === 'undefined') $(tree).width(configWidth).height(treeHeight);
+			var configWidth = document.location.search.indexOf('config_size=')==-1? 280: document.location.search.split('config_size=')[1].split('&')[0]-10; 
+			if (typeof(formula_edit) === 'undefined') $(tree).width(configWidth).height(treeHeight); 
 			if (typeof($_GET['ts']) !== 'undefined') source_url = source_url + '&ts=' + $_GET['ts'];
 			ftree = $("#tree").fancytree({
 				autoScroll: true,
@@ -767,29 +766,6 @@
 			updateLink();
 		});
 	}
-
-	/*function switchtree() {
-		if (document.getElementById('hidetree').InnerHTML == "<img src='./img/right.png'>") {
-			document.getElementById('hidetree').InnerHTML = "<img src='./img/y0axis.png'>";
-			$('body').find('#hidetree').html("<img src='./img/y0axis.png'>")
-			document.getElementById('treeid').style.display = 'inline';
-			var plotWidth = $(window).width()-280;
-			if (plotWidth < 300) plotWidth = 300;
-			$("#mybackground").width(plotWidth-14).height(((height-0)-14)+'px');
-			$("#placeholder").width(plotWidth-14).height(height+'px');
-			rePlotTs();
-		}
-		else {
-			document.getElementById('hidetree').InnerHTML = "<img src='./img/right.png'>";
-			$('body').find('#hidetree').html("<img src='./img/right.png'>")
-			document.getElementById('treeid').style.display = 'none';
-			var plotWidth = $(window).width()-30;
-			if (plotWidth < 300) plotWidth = 300;
-			$("#mybackground").width(plotWidth-14).height(((height-0)-14)+'px');
-			$("#placeholder").width(plotWidth-14).height(height+'px');
-			rePlotTs();
-		}
-	}*/
 
 	function rePlotTs(){
 		// adjust plot width
@@ -1102,6 +1078,7 @@
 			myPlot = localPlot;
 		}
 		else if (document.getElementById('show_flot') && document.getElementById('show_flot').checked) {
+			$("#mybackground").height('1px');
 			var options = {
 				series: { lines: { show: true } },
 				grid: { hoverable: true, clickable: true},
@@ -1114,6 +1091,7 @@
 			myPlot = localPlot;
 		}
 		else if (document.getElementById('show_chartjs') && document.getElementById('show_chartjs').checked) {
+			$("#mybackground").height('1px');
 			var options = {
 				scales: {
 					xAxes: [{
@@ -1400,12 +1378,11 @@
 			var minY = document.getElementById('minY').value;
 			if (minY.length>1) event += '&minY=' + minY;
 		}
-		if ($_GET.normalize) event += '&normalize';
 		// adjust plot dimensions
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
 		if (height < 300) height = 300;
-		// var plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
-		var plotWidth = $("#plotContainer").width()-14
+		if (!(document.getElementById('show_hc') && document.getElementById('show_hc').checked)) height = 15;	
+		var plotWidth = $(window).width()-(($('#tree').length > 0)? 280: 0);
 		if (plotWidth < 300) plotWidth = 300;
 		$("#mybackground").width(plotWidth-14).height(((height-0)-14)+'px');
 		$("#placeholder").width(plotWidth-14).height(height+'px');
@@ -1555,8 +1532,10 @@
 // ------------
 // Chart.js plot
 // ------------
+	var oldtime ='';
 	function chartjsPlot(data, dataEvent, forecastData, start, stop) {
 		if (window.myLine) window.myLine.destroy();
+		for (j=0; j<events.length; j++) document.getElementById('event_'+events[j]).style.display = 'none';
 		var style = 'step';
 		if (document.getElementById('style') && document.getElementById('style').value.length) {
 			style = document.getElementById('style').value;
@@ -1565,13 +1544,14 @@
 		var minYArray = (document.getElementById('minY') && document.getElementById('minY').value.length)? document.getElementById('minY').value.split(';'): [''];
 		var maxYArray = (document.getElementById('maxY') && document.getElementById('maxY').value.length)? document.getElementById('maxY').value.split(';'): [''];
 		var logYArray = (document.getElementById('logY') && document.getElementById('logY').value.length)? document.getElementById('logY').value.split(';'): ['0'];
-		var timeFormat = 'DD/MM/Y HH:mm:ss';
+		var timeFormat = 'HH:mm:ss';
 		var color = Chart.helpers.color;
 		var options = {
 			legend: {
 				position: 'bottom'
 			},
 			radius: 20,
+			maintainAspectRatio: false,
 			scales: {
 				xAxes: [{
 					type: "time",
@@ -1581,11 +1561,17 @@
 					},
 					scaleLabel: {
 						display: true,
-						labelString: 'Date'
+						labelString: 'Time'
 					},
 					ticks: {
 						callback: function(value, index, values) {
-							return index==values.length-1? '': moment(values[index]? values[index]['_i']: 0).format('DD/MM/Y');
+							if (index==values.length-1) return '';
+							var timestring = moment(values[index]? values[index]['_i']: 0).format('HH:mm:ss');
+							if (timestring == '00:00:00') timestring = moment(values[index]? values[index]['_i']: 0).format('DD/MM/Y');
+							else if (oldtime!='' && moment(oldtime).format('DDD') != moment(values[index]? values[index]['_i']: 0).format('DDD')) timestring = moment(values[index]? values[index]['_i']: 0).format('DD/MM/Y ')+timestring
+							oldtime = values[index]? values[index]['_i']: 0;
+							return timestring;
+							// return index==values.length-1? '': moment(values[index]? values[index]['_i']: 0).format('HH:mm:ss');
 						}
 					}
 				}],
@@ -1606,12 +1592,11 @@
 		if (minYArray[0]!="") options.scales.yAxes[0].ticks.min = minYArray[0]-0;
 		if (maxYArray[0]!="") options.scales.yAxes[0].ticks.max = maxYArray[0]-0;
 		if (logYArray[0]!="0") options.scales.yAxes[0].type = 'logarithmic';
-		if (minYArray[1]!="") options.scales.yAxes[1].ticks.min = minYArray[1]-0;
-		if (maxYArray[1]!="") options.scales.yAxes[1].ticks.max = maxYArray[1]-0;
-		if (logYArray[1]!="0") options.scales.yAxes[1].type = 'logarithmic';
+		if (minYArray.length>1 && minYArray[1]!="") options.scales.yAxes[1].ticks.min = minYArray[1]-0;
+		if (maxYArray.length>1 && maxYArray[1]!="") options.scales.yAxes[1].ticks.max = maxYArray[1]-0;
+		if (logYArray.length>1 && logYArray[1]!="0") options.scales.yAxes[1].type = 'logarithmic';
 		var datasets = [];
 		var y2 = false;
-		// console.log('style',style);
 		for (var j=0; j<data.length; j++) {
 			var d = []
 			for (var i=0; i<data[j].data.length; i++) d.push({x: data[j].data[i][0],y: data[j].data[i][1]});
@@ -1627,7 +1612,7 @@
 				cubicInterpolationMode: 'monotone',
 				steppedLine: style=='step',
 				data: d,
-				yAxisID: 'y'+data[j].yaxis,
+				yAxisID: 'y'+(data[j].yaxis=='multi'? '1': data[j].yaxis),
 			});
 		}
 		if (typeof forecastData != 'undefined') {
