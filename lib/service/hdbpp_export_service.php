@@ -11,7 +11,7 @@
 
 	$state = array('ON','OFF','CLOSE','OPEN','INSERT','EXTRACT','MOVING','STANDBY','FAULT','INIT','RUNNING','ALARM','DISABLE','UNKNOWN');
 
-	$pretimer = !isset($_REQUEST['no_pretimer']);
+	$pretimer = isset($_REQUEST['pretimer']);
 	$posttimer = !isset($_REQUEST['no_posttimer']);
 	$nullValue = isset($_REQUEST['nullValue'])? strip_tags($_REQUEST['nullValue']): '';
 
@@ -573,13 +573,18 @@
 			$orderby = $dim=='array'? "time, ts_index,idx": "data_time, ts_index";
 			$query_array[$ts_num] = "SELECT $time, $col_name, $ts_num AS ts_index FROM $table WHERE att_conf_id={$ts_id_num[0]} AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]}";
 			$old_data[$ts_num] = ($data_type=='itx')? "NAN": NULL;
-			if (isset($_REQUEST['zoh']) or isset($_REQUEST['foh'])) {
+			if (isset($_REQUEST['zoh']) || isset($_REQUEST['foh']) || $pretimer) {
 				$query = "SELECT $time, $col_name FROM $table WHERE att_conf_id={$ts_id_num[0]} AND data_time <= '{$start[$xaxis-1]}' ORDER BY data_time DESC LIMIT 1";
 				$res = mysqli_query($db, $query);
-				if (isset($_REQUEST['debug'])) debug($query, 'zoh_query');
+				if (isset($_REQUEST['debug'])) debug($query, 'zoh_query || pretimer');
 				$zrow = mysqli_fetch_array($res, MYSQLI_ASSOC);
 				$old_data[$ts_num] = sprintf($format, $zrow['val']-0);
 				$old_time[$ts_num] = $zrow['t']-0;
+				if ($pretimer) {
+					$timef = isset($_REQUEST['timestamp'])? $zrow['timestamp']: $zrow['time'];
+					emit_output("{$nl}".($data_type=='itx'? $row['timestamp']+2082844800: $timef));
+					emit_output($separator.$old_data[$ts_num]);
+				}
 				if (isset($_REQUEST['debug'])) {debug($zrow, 'row');debug($ts_num, 'ts_num');}
 			}
 			$last_id = $ts_num;
