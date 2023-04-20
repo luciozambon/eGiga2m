@@ -11,7 +11,7 @@
 // add regression https://github.com/Tom-Alexander/regression-js
 // use mysqlnd https://secure.php.net/manual/en/book.mysqlnd.php http://www.php.net/manual/en/features.connection-handling.php https://stackoverflow.com/questions/7582485/kill-mysql-query-on-user-abort email GS 9/1/2018
 
-	var version = '1.18.6';
+	var version = '1.18.7';
 	console.log('eGiga2m, version', version);
 	var visited = [];
 	var activePoint = -1; // used by tooltip keyboard navigation
@@ -45,6 +45,7 @@
 	var frameNum;
 	var updatePlot = 0;
 	var decimation = 'maxmin';
+	var max_event_num = 1000;
 	var decimationSamples = 1000;
 	var updateBackground = 300;
 	var updateRequest = '';
@@ -80,6 +81,10 @@
 	if (localStorage.length && typeof(localStorage.csvrepo) !== 'undefined') {
 		document.getElementById('csvrepo').value = localStorage.csvrepo;
 		document.getElementById('retain').value = localStorage.csvrepo;
+	}
+	if (typeof($_GET['max_event_num']) !== 'undefined') {
+		max_event_num = $_GET['max_event_num'];
+		$('#max_event_num').val(max_event_num);
 	}
 	if (typeof($_GET['plotservice']) !== 'undefined') {
 		// & = %26
@@ -333,13 +338,14 @@
 			exportService = window.location.protocol + "//" + window.location.host + path.join('/') + exportService.substr(1);
 		}
 		exportURL = exportService+start+stop+ts;
-		const downtimeCheckStr = document.getElementById('downtimeCheck').checked? '&downtimeCheck=true': '';
-		const decimationStr = decimation!=='maxmin'? '&decimation='+decimation: '';
-		const decimationSamplesStr = decimationSamples!=1000? '&decimationSamples='+decimationSamples: '';
-		const hideOverMaxmin = (document.getElementById('hideOverMaxmin') && document.getElementById('hideOverMaxmin').checked)? '&hideOverMaxmin=true': '';
+		var downtimeCheckStr = document.getElementById('downtimeCheck').checked? '&downtimeCheck=true': '';
+		var decimationStr = decimation!=='maxmin'? '&decimation='+decimation: '';
+		var decimationSamplesStr = decimationSamples!=1000? '&decimationSamples='+decimationSamples: '';
+		var max_event_numStr = max_event_num!=1000? '&max_event_num='+max_event_num: '';
+		var hideOverMaxmin = (document.getElementById('hideOverMaxmin') && document.getElementById('hideOverMaxmin').checked)? '&hideOverMaxmin=true': '';
 		// console.log('downtimeCheck: '+downtimeCheck);
 		var necessaryParam = conf+start+stop+ts;
-		var optionalParam = yconf+style+height+decimationStr+decimationSamplesStr+downtimeCheckStr+hideOverMaxmin;
+		var optionalParam = yconf+style+height+decimationStr+decimationSamplesStr+max_event_numStr+downtimeCheckStr+hideOverMaxmin;
 		for (var i in parameters) {
 			if (document.getElementById(i) && document.getElementById(i).checked) {
 				optionalParam = optionalParam + '&'+i+'=true';
@@ -506,6 +512,7 @@
 		animationDelay = 0;
 		document.getElementById('placeholder').style.border = "0px";
 		decimationSamples = document.getElementById('decimationSamples')? document.getElementById('decimationSamples').value: 'maxmin';
+		max_event_num = document.getElementById('max_event_num')? document.getElementById('max_event_num').value: 1000;
 		decimation = document.getElementById('decimation')? document.getElementById('decimation').value: 1000;
 		// console.log('decimation: '+decimation);
 		myPlotClass = []; // todo: re-use myPlotClass as cache, request data before calling plot function
@@ -1367,7 +1374,7 @@
 		myRequest = tsRequest;
 		var event = '';
 		for (j=0; j<events.length; j++) event += document.getElementById('show_'+events[j]).checked? '&show_'+events[j]+'='+document.getElementById('filter_'+events[j]).value: '';
-		event = `${event}&decimation=${decimation}&decimation_samples=${decimationSamples}`;
+		event = `${event}&decimation=${decimation}&decimation_samples=${decimationSamples}&max_event_num=${max_event_num}`;
 		// console.log(document.getElementById('hideOverMaxmin').checked);
 		// document.getElementById('hideOverMaxmin').value = true;
 		var hideOverMaxmin = document.getElementById('hideOverMaxmin')? document.getElementById('hideOverMaxmin').checked: false;
@@ -1817,6 +1824,16 @@
 	function hcPlot(data, eventData, forecastData, startArray, stopArray){
 		$("#canvas").hide();
 		$("#placeholder").show();
+		if (eventData && eventData.error && eventData.error.warning) {
+			var warning = eventData.error.warning.length>0? "<span style='color:red;'>WARNING: reached max number of errors.</span>": '';
+			for (i=0; i<eventData.error.warning.length; i++) {
+				var d = new Date(0); // The 0 there is the key, which sets the date to the epoch
+				d.setUTCSeconds(eventData.error.warning[i]/1000);
+				warning = warning + "<br>errors are ignored after " + getFormattedDate(eventData.error.warning[i]) + " for timeseries # " + i;
+			}
+			$('#event_error').html("<img src='./img/event_error.png'>&nbsp;Errors&nbsp;" + warning);
+		}
+		else console.log('no warnings');
 		if ($_GET.debug) console.log('hcPlot(), data', data, 'curves', curves)
 		var emptyMessage = "No data available in selected period";
 		var height = document.getElementById('height').value.length? document.getElementById('height').value: $(window).height()-200;
@@ -1917,9 +1934,8 @@
 		}
 		// console.log('eventData: ',eventData);
 		if (eventData) for (var j in eventData) {
-			if (j=='clone') continue;
-			if (typeof(fade_level[j]) === 'undefined') continue;
-			// console.log('eventData[j][data]: ',eventData[j]['data'], 'j',j);
+			if (j=='clone' || !(eventData[j]) || typeof(fade_level[j]) === 'undefined') continue;
+			// console.log('eventData[j][data]: ',eventData, 'j',j);
 			if (typeof(eventData[j]['label']) === 'undefined') {
 				myPlotClass.push({
 					name: j,
@@ -2170,7 +2186,7 @@
 		myPlot = localPlot;
 		for (var i in myPlotClass) {
 			if (myPlotClass[i].showInLegend===false) {
-				// don't install en event handler twice, if you cannot tell if it has already been installed, just uninstall it anyway
+				// don't install an event handler twice, if you cannot tell if it has already been installed, just uninstall it anyway
 				$('#event_'+myPlotClass[i].name).off("click");
 				$('#event_'+myPlotClass[i].name).click({name: i, label: myPlotClass[i].name},function (event) {
 					// alert(myPlotClass[event.data.name].name+' - '+event.data.label);
@@ -2360,6 +2376,16 @@
 	var times = new Array();
 
 	function plotSurfaceTs(ts_id, start, stop) {
+		console.log('plotSurfaceTs()',ts_id, start, stop);
+		const iframe = document.createElement("iframe");
+		iframe.style.width = "100%";
+		iframe.style.border = "0";
+		iframe.style.height = document.getElementById("placeholder").style.height;
+		iframe.src = './lib/threejs/mesh.html?conf='+$_GET['conf']+'&start='+start+'&stop='+stop+'&ts='+ts_id;
+		document.getElementById("placeholder").appendChild(iframe);
+		console.log('plotSurfaceTs() done');
+	}
+	function plotSurfaceTsOld(ts_id, start, stop) {
 		var start_param = 'start=' + start;
 		var stop_param = '';
 		if (stop.length) stop_param = '&stop=' + stop;
