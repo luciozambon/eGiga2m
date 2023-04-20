@@ -15,7 +15,7 @@
 	$posttimer = !isset($_REQUEST['no_posttimer']);
 	$nullValue = isset($_REQUEST['nullValue'])? strip_tags($_REQUEST['nullValue']): '';
 
-	$db = mysqli_connect(HOST, USERNAME, PASSWORD);
+	$db = mysqli_connect(HOST, USERNAME, PASSWORD, DB, PORT);
 	mysqli_select_db($db, DB);
 
 	// ----------------------------------------------------------------
