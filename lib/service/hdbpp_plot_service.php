@@ -119,12 +119,19 @@
 		}
 		return $time;
 	}
+	$event = array('error', 'alarm', 'command', 'button');
+	$show = array();
+	foreach ($event as $e) {
+		$show[$e] = (!SKIP_EVENT) || (isset($_REQUEST["show_$e"]));
+	}
+	$yerr = 0;
 
 	// ----------------------------------------------------------------
 	// based on https://stackoverflow.com/questions/48800128/using-php-mysql-how-do-i-free-memory
 	function optimized_query() {
 		global $db, $memory_limit, $start, $stop, $ts, $ts_array, $data_type_result, $decimationSamples, $decimation, $stop_timestamp, $querytime, 
-		$skipdomain, $fetchtime, $pretimer, $no_time;
+		$skipdomain, $fetchtime, $pretimer, $no_time, $show, $yerr;
+		$samples = 0;
 		if (!isset($_REQUEST['debug'])) header("Content-Type: application/json");
 		echo '{"ts":[';
 		$tsbreak = $envseparator = '';
@@ -181,6 +188,7 @@
 				$querytime += microtime(true);
 				$data = mysqli_fetch_array($res, MYSQLI_ASSOC);
 				$num_rows = $data['n'];
+				$samples += $num_rows;
 				// echo "querytime: $querytime<br>\n";
 				$data_buffer['num_rows'] = $num_rows;
 				$data_buffer['data'] = array('eGiga2m_separator');
@@ -226,6 +234,7 @@
 							if (round($conf_row['time'])<strtotime($start[$xaxis-1]." $timezone"))
 							if ($no_time) $output = $data_separator.json_encode($conf_row['val']-0, JSON_INVALID_UTF8_IGNORE);
 							else $output = $data_separator.json_encode(array('x'=>strtotime($start[$xaxis-1]." $timezone")*1000,'y'=>$conf_row['val']-0, 'marker'=>array('symbol'=>"url($host/img/prestart.png)"), 'prestart'=>$conf_row['time']*1000));
+							if ($conf_row['val'] !== NULL) $yerr = $row['val']-0;
 							if (!empty($output)) {
 								echo $output;
 								$data_separator = ',';
@@ -244,6 +253,7 @@
 							for ($i=0; $i<$recordsPerIteration; $i+=$sampling_every) {
 								if (!isset($rows[$i])) break;
 								$row = $rows[$i];
+								if ($row['val'] !== NULL) $yerr = $row['val']-0;
 								// echo $data_separator.$i.json_encode($rows[$i])."\n";
 								if ($no_time) echo $data_separator.json_encode((($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0, JSON_INVALID_UTF8_IGNORE);
 								else echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0), JSON_INVALID_UTF8_IGNORE);
@@ -252,6 +262,7 @@
 						}
 						else if ($decimation=='avg') {
 							foreach ($rows as $row) {
+								if ($row['val'] !== NULL) $yerr = $row['val']-0;
 								$sample++;
 								if (($sample+1) % $sampling_every) {
 									if ($row['val'] !== NULL) {
@@ -272,10 +283,12 @@
 							$imax = $imin = 0;
 							$prevtime = $rows[0]['time'];
 							foreach ($rows as $imm=>$row) {
+								// if (isset($_REQUEST['debug_maxmin'])) if ($row['val'] === NULL) continue;
+								if ($row['val'] !== NULL) $yerr = $row['val']-0;
 								$deltatime = ($row['time']-$prevtime)/2;
 								$sample++;
-								$v = $row['val']-0;
-								if (isset($max) && !is_null($max)) {
+								$v = is_null($row['val'])? NULL: $row['val']-0;
+								if (isset($max) && !is_null($max) && !is_null($v)) {
 									if ($v>$max) {$max = $v; $imax = $imm;}
 									if ($v<$min) {$min = $v; $imin = $imm;}
 								}
@@ -314,8 +327,23 @@
 								else echo $data_separator.json_encode(array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0), JSON_INVALID_UTF8_IGNORE);
 								$data_separator = ',';
 							//}
+							if ($row['val'] !== NULL) $yerr = $row['val']-0;
 							if (function_exists('memory_get_usage')) {
 								if ($memory_limit-memory_get_usage() < 8200) {
+									if (defined('LOG_REQUEST')) {
+										$requests = $sep = '';
+										foreach ($_REQUEST as $key => $value ) {
+											$requests .= $sep . $key . '=' . $value;
+											$sep = '&';
+										}
+										$remote = $_SERVER['REMOTE_ADDR'];
+										$forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR'])? $_SERVER['HTTP_X_FORWARDED_FOR']: 0;
+										if ($fd = @fopen(LOG_REQUEST, 'a')) {
+											$date = date("Y-m-d H:i:s");
+											fwrite($fd, "$date $remote $forwarded $requests Insufficient Storage query: ".round($querytime,2)."[s] fetch: ".round($fetchtime,2)."[s] #samples: $samples\n");
+											fclose($fd);
+										}
+									}
 									header("HTTP/1.1 507 Insufficient Storage");
 									exit();
 								}
@@ -331,6 +359,25 @@
 				}
 				echo strtr($env[1],array('"eGiga2m_querytime"'=>$querytime));
 			}
+		}
+		if (defined('LOG_REQUEST')) {
+			$requests = $sep = '';
+			foreach ($_REQUEST as $key => $value ) {
+				$requests .= $sep . $key . '=' . $value;
+				$sep = '&';
+			}
+			$remote = $_SERVER['REMOTE_ADDR'];
+			$forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR'])? $_SERVER['HTTP_X_FORWARDED_FOR']: 0;
+			if ($fd = @fopen(LOG_REQUEST, 'a')) {
+				$date = date("Y-m-d H:i:s");
+				fwrite($fd, "$date $remote $forwarded $requests query: ".round($querytime,2)."[s] fetch: ".round($fetchtime,2)."[s] #samples: $samples\n");
+				fclose($fd);
+			}
+		}
+		if (isset($_REQUEST['errdebug2'])) die('$show '.print_r($show, true));
+		if ($show['error']) {
+			$err = get_error();
+			die('],"event":{"error":'.json_encode($err).'}}');// ."\n\n".
 		}
 		die('],"event":[]}');
 	}
@@ -578,6 +625,7 @@
 									if ($no_time) $big_data_w[] = (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0;
 									else $big_data_w[] = array($row['time']*1000, (($type=='devstring') or ($row['val'] === NULL))? $row['val']: $row['val']-0);
 								}
+								if ($row['val'] !== NULL) $yerr = $row['val']-0;
 							}
 						}
 						else if ($decimation=='avg') {
@@ -644,6 +692,7 @@
 							}
 						}
 						else if ($decimation=='maxmin') {
+							if (isset($_REQUEST['debug_maxmin'])) {debug($decimation, 'decimation');}
 							if ($dim=='array') {
 								$k = $row['idx'];
 								$big_data[$ts_counter+$k]['ts_id'] = $ts_id_num[0];
@@ -655,7 +704,7 @@
 							}
 							else {
 								$slot = floor(($row['time']-$start_timestamp)/$slot_maxmin);
-								$v = $row['val']-0;
+								$v = is_null($row['val'])? NULL: $row['val']-0;
 								if (isset($maxv[$slot]) && !is_null($maxv[$slot][1])) {
 									if ($no_time) if ($v>$maxv[$slot][1]) $maxv[$slot] = $v;
 									else if ($v>$maxv[$slot][1]) $maxv[$slot] = array($row['time']*1000, $v);
@@ -702,6 +751,20 @@
 					}
 					if (function_exists('memory_get_usage')) {
 						if ($memory_limit-memory_get_usage() < 16400) {
+							if (defined('LOG_REQUEST')) {
+								$requests = $sep = '';
+								foreach ($_REQUEST as $key => $value ) {
+									$requests .= $sep . $key . '=' . $value;
+									$sep = '&';
+								}
+								$remote = $_SERVER['REMOTE_ADDR'];
+								$forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR'])? $_SERVER['HTTP_X_FORWARDED_FOR']: 0;
+								if ($fd = @fopen(LOG_REQUEST, 'a')) {
+									$date = date("Y-m-d H:i:s");
+									fwrite($fd, "$date $remote $forwarded $requests Insufficient Storage query: ".round($querytime,2)."[s] fetch: ".round($fetchtime,2)."[s] #samples: $samples\n");
+									fclose($fd);
+								}
+							}
 							header("HTTP/1.1 507 Insufficient Storage");
 							exit();
 						}
@@ -732,21 +795,6 @@
 			// debug(count($big_data["ts{$xaxis}_".$ts_id_num]['data']), 'ts'.$ts_id_num);
 			$ts_counter++;
 			$fetchtime += microtime(true);
-		}
-	}
-
-	if (defined('LOG_REQUEST')) {
-		$requests = $sep = '';
-		foreach ($_REQUEST as $key => $value ) {
-			$requests .= $sep . $key . '=' . $value;
-			$sep = '&';
-		}
-		$remote = $_SERVER['REMOTE_ADDR'];
-		$forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR'])? $_SERVER['HTTP_X_FORWARDED_FOR']: 0;
-		if ($fd = @fopen(LOG_REQUEST, 'a')) {
-			$date = date("Y-m-d H:i:s");
-			fwrite($fd, "$date $remote $forwarded $requests query: ".round($querytime,2)."[s] fetch: ".round($fetchtime,2)."[s] #samples: $samples\n");
-			fclose($fd);
 		}
 	}
 
@@ -791,9 +839,9 @@
 				$orderby = $dim=='array'? "time,idx": "data_time";
 				$filter = (strlen($_REQUEST["show_error"]) and ($_REQUEST["show_error"]!=='1'))? "AND $col_name LIKE ".quote_smart(strtr($_REQUEST["show_error"], array('*'=>'%'))): ""; 
 				$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, att_error_desc.$col_name FROM $table, att_error_desc WHERE {$table}.att_error_desc_id=att_error_desc.att_error_desc_id $filter AND att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
-				if (isset($_REQUEST['errdebug'])) echo "$query;<br>\n";
+				if (isset($_REQUEST['errdebug'])) echo "\n\n".__LINE__."\n$query;<br>\n";
 				// $query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE $filter AND att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
-				if (isset($_REQUEST['errdebug'])) echo "$query;<br>\n";
+				if (isset($_REQUEST['errdebug'])) echo "\n\n".__LINE__."\n$query;<br>\n";
 				if (isset($_REQUEST['debug'])) debug($query);
 				$querytime -= microtime(true);
 				$res = mysqli_query($db, $query);
@@ -816,6 +864,73 @@
 			ksort($data);
 			$big_data['event']['error']['message'] = $messages;
 			$big_data['event']['error']['data'] = array_values($data);
+		}
+	}
+	function get_error() {
+		global $ts,$stop_timestamp,$stop,$start,$interval,$db,$y,$yerr,$host;
+		$max_event_num = empty($_REQUEST['max_event_num'])? 1000: $_REQUEST['max_event_num']-0;
+		$messages = $warnings = array();
+		$ts_counter = 0;
+		$data = array();
+		foreach ($ts as $xaxis=>$ts_array) {
+			if (empty($ts_array)) continue;
+			$interval = $stop_timestamp[$xaxis-1] - strtotime($start[$xaxis-1]);
+			$slot_maxmin = $interval*2/1000;
+			foreach ($ts_array as $ts_num=>$ts_id_num) {
+				list($att_conf_id,$element_index,$trash) = explode('[',trim($ts_id_num[0], ']').'[[',3);
+				$query = "SELECT * FROM att_conf,att_conf_data_type WHERE att_conf_id=$att_conf_id AND att_conf.att_conf_data_type_id=att_conf_data_type.att_conf_data_type_id";
+				$res = mysqli_query($db, $query);
+				if (isset($_REQUEST['errdebug'])) echo "\n\n".__LINE__."\n$query;<br>\n";
+				$r = mysqli_fetch_all($res, MYSQLI_ASSOC);
+				$row = $r[0];
+				if (isset($_REQUEST['errdebug'])) echo "\n\n".__LINE__."\nrow ".print_r($row,true)."<br>\n";
+				list($dim, $type, $io) = explode('_', $row['data_type']);
+				$table = sprintf("att_{$dim}_{$type}_{$io}");
+				$col_name = 'error_desc';
+				$orderby = $dim=='array'? "time,idx": "data_time";
+				$filter = (strlen($_REQUEST["show_error"]) and ($_REQUEST["show_error"]!=='1'))? "AND $col_name LIKE ".quote_smart(strtr($_REQUEST["show_error"], array('*'=>'%'))): ""; 
+				$query = "SELECT UNIX_TIMESTAMP(data_time) AS time, att_error_desc.$col_name FROM $table, att_error_desc WHERE {$table}.att_error_desc_id=att_error_desc.att_error_desc_id $filter AND att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby LIMIT $max_event_num";
+				// $query = "SELECT UNIX_TIMESTAMP(data_time) AS time, $col_name FROM $table WHERE $filter AND att_conf_id=$att_conf_id AND data_time > '{$start[$xaxis-1]}'{$stop[$xaxis-1]} ORDER BY $orderby";
+				if (isset($_REQUEST['errdebug'])) echo "\n\n".__LINE__."\n$query;<br>\n";
+				if (isset($_REQUEST['debug'])) debug($query);
+				$querytime -= microtime(true);
+				$res = mysqli_query($db, $query);
+				$querytime += microtime(true);
+				$fetchtime -= microtime(true);
+				$sample = -1;
+				if ($res) while ($row = mysqli_fetch_array($res, MYSQLI_ASSOC)) {
+					if (($msg = array_search($row[$col_name], $messages)) === false) {
+						$messages[] = $row[$col_name];
+						$msg = count($messages) - 1;
+					}
+					$maxevent = $row['time']*1000;
+					$data[$row['time']*100000+$ts_counter] = array('x'=>$row['time']*1000, 'y'=>$yerr*0.99, 'message'=>$msg, 'ts'=>$ts_counter,'marker'=>array('symbol'=>"url($host/img/event_error.png)"));
+				}
+				if ($res && $max_event_num==mysqli_num_rows($res)) {
+					$warnings[$ts_counter] = $maxevent;
+				}
+				$ts_counter++;
+				$fetchtime += microtime(true);
+			}
+		}
+		if (isset($_REQUEST['errdebug'])) echo "\n\n".__LINE__."\nrow ".print_r($data,true)."<br>\n";
+		if (!empty($data)) {
+			ksort($data);
+			return array('message'=>$messages,'data'=>array_values($data), 'warning'=>$warnings);
+		}
+	}
+	if (defined('LOG_REQUEST')) {
+		$requests = $sep = '';
+		foreach ($_REQUEST as $key => $value ) {
+			$requests .= $sep . $key . '=' . $value;
+			$sep = '&';
+		}
+		$remote = $_SERVER['REMOTE_ADDR'];
+		$forwarded = isset($_SERVER['HTTP_X_FORWARDED_FOR'])? $_SERVER['HTTP_X_FORWARDED_FOR']: 0;
+		if ($fd = @fopen(LOG_REQUEST, 'a')) {
+			$date = date("Y-m-d H:i:s");
+			fwrite($fd, "$date $remote $forwarded $requests query: ".round($querytime,2)."[s] fetch: ".round($fetchtime,2)."[s] #samples: $samples\n");
+			fclose($fd);
 		}
 	}
 
