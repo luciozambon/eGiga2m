@@ -1825,11 +1825,15 @@
 		$("#canvas").hide();
 		$("#placeholder").show();
 		if (eventData && eventData.error && eventData.error.warning) {
-			var warning = eventData.error.warning.length>0? "<span style='color:red;'>WARNING: reached max number of errors.</span>": '';
-			for (i=0; i<eventData.error.warning.length; i++) {
+			var warnkeys = Object.keys(eventData.error.warning);
+			// console.log('data', data, 'eventData', eventData, 'len', warnkeys.length, data.length, warnkeys);
+			var warning = warnkeys.length>0? "<span style='color:red;'>WARNING: reached max number of errors.</span>": '';
+			for (j=0; j<warnkeys.length; j++) {
+				var i = warnkeys[j];
 				var d = new Date(0); // The 0 there is the key, which sets the date to the epoch
+				if (typeof eventData.error.warning[i] == 'undefined') continue;
 				d.setUTCSeconds(eventData.error.warning[i]/1000);
-				warning = warning + "<br>errors are ignored after " + getFormattedDate(eventData.error.warning[i]) + " for timeseries # " + i;
+				warning = warning + "<br>errors are ignored after " + getFormattedDate(eventData.error.warning[i]) + (data.length>1? " for timeseries " + data[i].label: '');
 			}
 			$('#event_error').html("<img src='./img/event_error.png'>&nbsp;Errors&nbsp;" + warning);
 		}
