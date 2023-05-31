@@ -42,7 +42,17 @@
 	</nav>
 
 	<div class="container" style='width: 100%'>
-	Q. How can I see a time series from a certain point till now?<br>
+	Q. I cannot see any chart?<br>
+	A. This can be due to serveral problems<ul>
+		<li>Neither one time series has been selected, please select one</li>
+		<li>Start time has not been configured; in this case all data of selected time series is loaded and this can require a too long time; please restrict the requested time interval</li>
+		<li>There are too many errors, each error is considered as a hole in the chart. If there are more holes than data points you can limit errors in menu "Config" setting "max number of errors" to 1.</li>
+		<li>There are no data saved for the time series selected, you can check this in menu "Export" selecting Format "JSON" and clicking on link on the bottom. The JSON export is exaclty the data source used for charts.</li>
+		<li>The archiving database is empty; please contact your system manager</li>
+		<li>The connection to the archiving database isn't working; please contact your system manager</li>
+		</ul><br><br>
+
+	Q. How can I see a time series from a certain point until now?<br>
 	A. On most cases just leave empty the "stop" input box. This means don't stop ever, and if your archiving system can't predict the future you are done.<br><br><br>
 
 	Q. I've selected a few time series and periods. How can I restart from scratch?<br>
