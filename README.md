@@ -1,3 +1,6 @@
+# This project has been moved to 
+# https://gitlab.elettra.eu/puma/client/egiga2m
+
 # eGiga2m
 
 eGiga2m is a web graphic data viewer.
